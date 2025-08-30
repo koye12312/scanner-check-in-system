@@ -1,4 +1,4 @@
-# Church Attendance System (Flask + QR Codes)
+# Scanner-Check in Attendance System (Flask + QR Codes)
 
 A lightweight check‑in/out system built with Flask. It supports QR-based registration, duplicate‑check prevention, parent/child logic, and an admin dashboard for logs and exports.
 
