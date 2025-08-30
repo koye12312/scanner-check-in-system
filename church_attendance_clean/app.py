@@ -1081,7 +1081,7 @@ if __name__ == "__main__":
             try:
                 ip = socket.gethostbyname(socket.gethostname())
             except Exception:
-                ip = "127.0.0.1"
+                ip = "input your ip address"   // i used 127.0.0.1
         finally:
             s.close()
         return ip
@@ -1095,3 +1095,4 @@ if __name__ == "__main__":
     threading.Thread(target=open_browser, daemon=True).start()
     # Serve on all interfaces so other devices on Wi-Fi can reach it
     app.run(host="0.0.0.0", port=5000, debug=True)
+
