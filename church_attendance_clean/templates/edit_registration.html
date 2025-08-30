@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Registration</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 40px;
+        }
+
+        .container {
+            background: white;
+            padding: 30px 40px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        label {
+            font-weight: 500;
+            margin-top: 15px;
+            display: block;
+            color: #333;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="tel"],
+        input[type="date"],
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 15px;
+        }
+
+        .note {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .gender-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .gender-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .action-buttons button {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+    
+        .btn-save {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+
+        .btn-save:hover {
+            background-color: #45a049;
+        }
+
+        .btn-save:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .btn-regenerate {
+            background-color: #ffc107;
+            color: black;
+            border: none;
+        }
+
+        .btn-regenerate:hover {
+            background-color: #e0a800;
+        }
+
+        .btn-regenerate:disabled {
+            background-color: #d3d3d3;
+            cursor: not-allowed;
+        }
+
+        .minor-note {
+            background-color: #e8f5e9;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .error-messages {
+            background-color: #ffebee;
+            border-left: 4px solid #f44336;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        
+        .error-message {
+            color: #f44336;
+            margin: 5px 0;
+            font-size: 0.95rem;
+        }
+
+        .error-input {
+            border: 1px solid #f44336 !important;
+        }
+
+        .error-label {
+            color: #f44336;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .session-timeout {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        /* New styles for checkout functionality */
+        .checkout-btn {
+            background-color: #e74c3c;
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            font-size: 16px;
+            margin-top: 15px;
+        }
+        
+        .checkout-btn:hover {
+            background-color: #c0392b;
+        }
+        
+        .status-indicator {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        
+        .checked-in {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .checked-out {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        @media screen and (max-width: 600px) {
+            body {
+                padding: 20px;
+            }
+
+            .container {
+                padding: 25px;
+            }
+            
+            .gender-group {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="session-timeout" id="sessionTimeout">
+        Session expiring in <span id="timeoutCounter">2:00</span> minutes
+    </div>
+    
+    <div class="container">
+        <h2>
+            <i class="bi bi-pencil-square"></i> Edit Registration
+        </h2>
+        
+        {% if errors %}
+        <div class="error-messages">
+            {% for error in errors %}
+            <div class="error-message">❌ {{ error }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- Check-in status indicator -->
+        <div class="status-indicator {% if is_checked_in %}checked-in{% else %}checked-out{% endif %}">
+            <i class="bi bi-{% if is_checked_in %}check-circle{% else %}x-circle{% endif %}"></i>
+            {% if is_checked_in %}
+                Currently checked in
+            {% else %}
+                Not currently checked in
+            {% endif %}
+        </div>
+        
+        <form method="POST" action="/edit-registration/{{ index }}" id="editForm">
+            <label for="first_name" class="{{ 'error-label' if 'first_name' in errors }}">First Name:
+                <input type="text" name="first_name" id="first_name" value="{{ reg[0] }}" required 
+                       oninput="validateName(this)" aria-required="true">
+            </label>
+            <div id="first_name_error" class="error-message" style="display:none;"></div>
+
+            <label for="last_name" class="{{ 'error-label' if 'last_name' in errors }}">Last Name:
+                <input type="text" name="last_name" id="last_name" value="{{ reg[1] }}" required 
+                       oninput="validateName(this)" aria-required="true">
+            </label>
+            <div id="last_name_error" class="error-message" style="display:none;"></div>
+
+            <label for="email" class="{{ 'error-label' if 'email' in errors }}">Email:
+                <input type="email" name="email" id="email" value="{{ reg[2] }}" required 
+                       oninput="validateEmail(this)" aria-required="true">
+                <div class="note">Must be unique - QR code will be sent to this email</div>
+            </label>
+            <div id="email_error" class="error-message" style="display:none;"></div>
+
+            <label for="phone" class="{{ 'error-label' if 'phone' in errors }}">Phone Number:
+                <input type="tel" name="phone" id="phone" value="{{ reg[3] }}" required 
+                       oninput="validatePhone(this)" aria-required="true">
+                <div class="note">Must be unique</div>
+            </label>
+            <div id="phone_error" class="error-message" style="display:none;"></div>
+
+            <label>Gender:</label>
+            <div class="gender-group">
+                <label class="gender-option">
+                    <input type="radio" name="gender" value="Male" {% if reg[4] == 'Male' %}checked{% endif %} required 
+                           aria-label="Male">
+                    Male
+                </label>
+                <label class="gender-option">
+                    <input type="radio" name="gender" value="Female" {% if reg[4] == 'Female' %}checked{% endif %} 
+                           aria-label="Female">
+                    Female
+                </label>
+                <label class="gender-option">
+                    <input type="radio" name="gender" value="Other" {% if reg[4] == 'Other' or not reg[4] %}checked{% endif %} 
+                           aria-label="Other">
+                    Other
+                </label>
+            </div>
+
+            <label for="role" class="{{ 'error-label' if 'role' in errors }}">Role:
+                <select name="role" id="role" required aria-required="true" onchange="updateFields()">
+                    <option value="Adult" {% if reg[5] == 'Adult' %}selected{% endif %}>Adult (no children)</option>
+                    <option value="Parent" {% if reg[5] == 'Parent' %}selected{% endif %}>Parent (with children)</option>
+                    <option value="Child" {% if reg[5] == 'Child' %}selected{% endif %}>Child (under 18)</option>
+                </select>
+            <label for="date_of_birth">Date of Birth:
+                <input type="date" id="date_of_birth" name="date_of_birth" value="{{ reg[11] or '' }}" required>
+            </label>
+
+
+            <!-- 🔹 Address: Adults only, optional (ADDED) -->
+            <div id="address_field" class="{% if reg[5] == 'Adult' %}d-block{% else %}d-none{% endif %} mt-3">
+                <label for="address">Address (optional):
+                    <input type="text" name="address" id="address"
+                           value="{% if reg|length > 10 %}{{ reg[10] }}{% endif %}">
+                </label>
+            </div>
+
+            <div id="children_field" style="display:none; margin-top:15px;">
+                <label for="children" class="{{ 'error-label' if 'children' in errors }}">Children's First Names (comma separated):
+                    <input type="text" name="children" id="children" value="{{ reg[6] }}" 
+                           oninput="validateChildren(this)">
+                    <div class="note">* Last name will be added automatically</div>
+                </label>
+                <div id="children_error" class="error-message" style="display:none;"></div>
+            </div>
+
+            <div id="parent_field" style="display:none; margin-top:15px;">
+                <label for="parent" class="{{ 'error-label' if 'parent' in errors }}">Parent/Guardian:
+                    <select name="parent" id="parent" aria-required="true">
+                        <option value="">Select Parent</option>
+                        {% for parent in registered_parents %}
+                            <option value="{{ parent }}" {% if reg[9] == parent %}selected{% endif %}>{{ parent }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="note">Required for children</div>
+                </label>
+                <div id="parent_error" class="error-message" style="display:none;"></div>
+            </div>
+
+            
+            <div class="action-buttons">
+                <button type="submit" class="btn-save" id="saveButton">
+                    <i class="bi bi-save"></i> <span id="saveText">Save Changes</span>
+                </button>
+                <button type="button" class="btn-regenerate" id="regenerateButton" onclick="regenerateQR()">
+                    <i class="bi bi-arrow-repeat"></i> Regenerate QR
+                </button>
+            </div>
+            <input type="hidden" id="regenerate_qr" name="regenerate_qr" value="0">
+        </form>
+        
+        <!-- Checkout button -->
+        {% if is_checked_in %}
+        <form method="POST" action="/check-out/{{ index }}">
+            <button type="submit" class="checkout-btn">
+                <i class="bi bi-box-arrow-right"></i> Check Out
+            </button>
+        </form>
+        {% endif %}
+
+        <a href="/admin-registrations" class="btn btn-secondary mt-3">
+            <i class="bi bi-arrow-left"></i> Back to Registrations
+        </a>
+    </div>
+    
+    <!-- Script for form field visibility and QR regeneration -->
+    <script>
+        // Session timeout settings
+        const SESSION_TIMEOUT_MINUTES = 30;
+        let sessionTimeout = SESSION_TIMEOUT_MINUTES * 60; // in seconds
+        let sessionTimer;
+        const sessionTimeoutElement = document.getElementById('sessionTimeout');
+        
+        // Start session timer
+        function startSessionTimer() {
+            clearInterval(sessionTimer);
+            sessionTimeout = SESSION_TIMEOUT_MINUTES * 60;
+            updateSessionTimerDisplay();
+    
+            sessionTimer = setInterval(() => {
+                sessionTimeout--;
+                updateSessionTimerDisplay();
+        
+                if (sessionTimeout <= 0) {
+                    clearInterval(sessionTimer);
+                    alert('Your session has expired. Please log in again.');
+                    window.location.href = '/admin-login?expired=1';
+                } else if (sessionTimeout <= 120) {
+                    sessionTimeoutElement.style.display = 'block';
+                }
+            }, 1000);
+        }
+        
+        function updateSessionTimerDisplay() {
+            const minutes = Math.floor(sessionTimeout / 60);
+            const seconds = sessionTimeout % 60;
+            document.getElementById('timeoutCounter').textContent = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        // Reset session timer on user activity
+        document.addEventListener('click', startSessionTimer);
+        document.addEventListener('keypress', startSessionTimer);
+        
+        // Form field management
+        function updateFields() {
+    const role = document.getElementById("role").value;
+    document.getElementById("children_field").style.display = role === "Parent" ? "block" : "none";
+    document.getElementById("parent_field").style.display   = role === "Child"  ? "block" : "none";
+
+    // Address: Adults only; clear when hidden
+    const addrWrap  = document.getElementById("address_field");
+    const addrInput = document.getElementById("address");
+    if (role === "Adult") {
+        addrWrap.classList.remove("d-none");
+        addrWrap.classList.add("d-block");
+    } else {
+        addrWrap.classList.remove("d-block");
+        addrWrap.classList.add("d-none");
+        if (addrInput) addrInput.value = "";
+    }
+}
+
+        
+        // Initialize based on current role
+        document.addEventListener('DOMContentLoaded', function() {
+            updateFields();
+            
+            // Set max date for birth date (18 years ago) — if you add a birth_date input
+            const today = new Date();
+            const maxDate = new Date();
+            maxDate.setFullYear(today.getFullYear() - 18);
+            document.getElementById('birth_date')?.setAttribute('max', maxDate.toISOString().split('T')[0]);
+            
+            // Start session timer
+            startSessionTimer();
+        });
+        
+        // Validation functions
+        function validateName(input) {
+            const errorElement = document.getElementById(`${input.id}_error`);
+            if (input.value.match(/[0-9]/)) {
+                errorElement.textContent = "❌ Names cannot contain numbers";
+                errorElement.style.display = "block";
+                input.classList.add("error-input");
+                return false;
+            } else {
+                errorElement.style.display = "none";
+                input.classList.remove("error-input");
+                return true;
+            }
+        }
+        
+        function validateEmail(input) {
+            const errorElement = document.getElementById("email_error");
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(input.value)) {
+                errorElement.textContent = "❌ Please enter a valid email address";
+                errorElement.style.display = "block";
+                input.classList.add("error-input");
+                return false;
+            } else {
+                errorElement.style.display = "none";
+                input.classList.remove("error-input");
+                return true;
+            }
+        }
+        
+        function validatePhone(input) {
+            const errorElement = document.getElementById("phone_error");
+            // Simple phone validation - at least 7 digits
+            if (!input.value.match(/^[0-9\s-]{7,}$/)) {
+                errorElement.textContent = "❌ Please enter a valid phone number";
+                errorElement.style.display = "block";
+                input.classList.add("error-input");
+                return false;
+            } else {
+                errorElement.style.display = "none";
+                input.classList.remove("error-input");
+                return true;
+            }
+        }
+        
+        function validateChildren(input) {
+            const errorElement = document.getElementById("children_error");
+            const names = input.value.split(',').map(name => name.trim());
+            
+            for (const name of names) {
+                if (name.match(/[0-9]/)) {
+                    errorElement.textContent = `❌ Child name "${name}" contains numbers`;
+                    errorElement.style.display = "block";
+                    input.classList.add("error-input");
+                    return false;
+                }
+            }
+            
+            errorElement.style.display = "none";
+            input.classList.remove("error-input");
+            return true;
+        }
+        
+        function validateForm() {
+            let isValid = true;
+            
+            // Validate required fields
+            if (!validateName(document.getElementById("first_name"))) isValid = false;
+            if (!validateName(document.getElementById("last_name"))) isValid = false;
+            if (!validateEmail(document.getElementById("email"))) isValid = false;
+            if (!validatePhone(document.getElementById("phone"))) isValid = false;
+            
+            // Role-specific validation
+            const role = document.getElementById("role").value;
+            if (role === "Parent") {
+                if (!validateChildren(document.getElementById("children"))) isValid = false;
+            } else if (role === "Child") {
+                const parentSelect = document.getElementById("parent");
+                if (!parentSelect.value) {
+                    document.getElementById("parent_error").textContent = "❌ Parent/Guardian is required";
+                    document.getElementById("parent_error").style.display = "block";
+                    parentSelect.classList.add("error-input");
+                    isValid = false;
+                } else {
+                    document.getElementById("parent_error").style.display = "none";
+                }
+            }
+            
+            return isValid;
+        }
+        
+        // Form submission handler
+        document.getElementById("editForm").addEventListener("submit", function(e) {
+            if (!validateForm()) {
+                e.preventDefault();
+                return;
+            }
+            
+            const saveButton = document.getElementById("saveButton");
+            saveButton.disabled = true;
+            document.getElementById("saveText").innerHTML = '<span class="spinner"></span> Saving...';
+        });
+        
+        function regenerateQR() {
+            if (!confirm("Generate new QR code? Old one will stop working!")) {
+                return;
+            }
+            
+            const regenerateButton = document.getElementById("regenerateButton");
+            regenerateButton.disabled = true;
+            regenerateButton.innerHTML = '<i class="bi bi-arrow-repeat"></i> <span class="spinner"></span> Regenerating...';
+            
+            document.getElementById("regenerate_qr").value = "1";
+            document.getElementById("editForm").submit();
+       }
+
+// 🔹 Prevent future DOB dates
+document.addEventListener('DOMContentLoaded', () => {
+    const dobInput = document.getElementById('date_of_birth');
+    if (dobInput) {
+        const today = new Date().toISOString().split('T')[0];
+        dobInput.max = today;
+    }
+});
+
+        
+    </script>
+</body>
+</html>

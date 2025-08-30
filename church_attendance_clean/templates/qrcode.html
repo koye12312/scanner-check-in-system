@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Registration Successful</title>
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --secondary: #3498db;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 500px;
+            width: 90%;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+            position: relative;
+        }
+        h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        p {
+            color: #555;
+            font-size: 1.05rem;
+            margin: 10px 0 25px;
+            line-height: 1.6;
+        }
+        .qr-container {
+            position: relative;
+            margin: 20px auto;
+            width: 250px;
+            height: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px dashed #ddd;
+            border-radius: 10px;
+            background: #f9f9f9;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(52, 152, 219, 0.2);
+            border-radius: 50%;
+            border-top-color: var(--secondary);
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .qr-image {
+            max-width: 100%;
+            max-height: 100%;
+            display: none;
+        }
+        .error-message {
+            color: #e74c3c;
+            padding: 15px;
+            background: #ffebee;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 12px 20px;
+            background-color: var(--primary);
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+            min-width: 180px;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background-color: var(--secondary);
+        }
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--secondary);
+            color: var(--secondary);
+        }
+        .session-timeout {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            display: none;
+            z-index: 1000;
+        }
+        .download-options {
+            margin-top: 25px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: left;
+        }
+        .download-options h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+            }
+            .qr-container {
+                width: 220px;
+                height: 220px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="session-timeout" id="sessionTimeout">
+        Session expiring in <span id="timeoutCounter">2:00</span> minutes
+    </div>
+    
+    <div class="container">
+        <h2>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm4.5 0a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1h-3zM4 5.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-7z"/>
+            </svg>
+            {{ name }} Registered
+        </h2>
+        <p>Your QR code has been generated. Please save it for future check-ins.</p>
+        
+        <div class="qr-container" id="qrContainer">
+            <div class="spinner" id="spinner"></div>
+            <img src="{{ qr_url }}" alt="QR Code for {{ name }}" class="qr-image" id="qrImage"
+                 onload="document.getElementById('spinner').style.display = 'none'; this.style.display = 'block';"
+                 onerror="showQrError()">
+        </div>
+        
+        <div class="error-message" id="qrError">
+            ❌ Failed to load QR code. Please try opening the QR link instead.
+        </div>
+        
+        <div class="download-options">
+            <h3>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                    <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                </svg>
+                Save Your QR Code
+            </h3>
+            <p>To save your QR code:</p>
+            <ul>
+                <li><strong>Mobile:</strong> Press and hold the QR code image, then select "Save Image"</li>
+                <li><strong>Computer:</strong> Right-click the QR code and select "Save Image As"</li>
+            </ul>
+        </div>
+        
+        <div class="button-group">
+            <a href="/" class="btn btn-outline">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M8.707 1.5a1 1 0 0 0-1.414 0L.646 8.146a.5.5 0 0 0 .708.708L2 8.207V13.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V8.207l.646.647a.5.5 0 0 0 .708-.708L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.707 1.5ZM13 7.207V13.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V7.207l5-5 5 5Z"/>
+                </svg>
+                Back to Home
+            </a>
+            <a href="{{ qr_url }}" target="_blank" class="btn btn-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M6.5 1A1.5 1.5 0 0 0 5 2.5v3A1.5 1.5 0 0 0 6.5 7h3A1.5 1.5 0 0 0 11 5.5v-3A1.5 1.5 0 0 0 9.5 1h-3zm0 1h3a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-3a.5.5 0 0 1 .5-.5z"/>
+                    <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                </svg>
+                Open QR Link
+            </a>
+            <button class="btn" onclick="printQR()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M5 1a2 2 0 0 0-2 2v1h10V3a2 2 0 0 0-2-2H5zm6 8H5a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1z"/>
+                    <path d="M0 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-1v-2a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2H2a2 2 0 0 1-2-2V7zm2.5 1a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>
+                </svg>
+                Print QR Code
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Session timeout settings
+        const SESSION_TIMEOUT_MINUTES = 30;
+        let sessionTimeout = SESSION_TIMEOUT_MINUTES * 60; // in seconds
+        let sessionTimer;
+        const sessionTimeoutElement = document.getElementById('sessionTimeout');
+        
+        // Start session timer
+        function startSessionTimer() {
+           clearInterval(sessionTimer);
+            sessionTimeout = SESSION_TIMEOUT_MINUTES * 60;
+            updateSessionTimerDisplay();
+    
+           sessionTimer = setInterval(() => {
+         sessionTimeout--;
+         updateSessionTimerDisplay();
+        
+          if (sessionTimeout <= 0) {
+              clearInterval(sessionTimer);
+              alert('Your session has expired. Please log in again.');
+              window.location.href = '/admin-login?expired=1';
+        } else if (sessionTimeout <= 120) {
+            sessionTimeoutElement.style.display = 'block';
+        }
+    }, 1000);
+}
+        
+        function updateSessionTimerDisplay() {
+            const minutes = Math.floor(sessionTimeout / 60);
+            const seconds = sessionTimeout % 60;
+            document.getElementById('timeoutCounter').textContent = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        // Reset session timer on user activity
+        document.addEventListener('click', startSessionTimer);
+        document.addEventListener('keypress', startSessionTimer);
+        
+        // QR code error handling
+        function showQrError() {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('qrError').style.display = 'block';
+        }
+        
+        // Print QR code - FIXED SECTION
+        function printQR() {
+            const printWindow = window.open('', '_blank');
+            const printContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Print QR Code</title>
+                    <style>
+                        body { 
+                            font-family: Arial, sans-serif; 
+                            text-align: center; 
+                            padding: 20px;
+                        }
+                        .print-container { 
+                            max-width: 300px; 
+                            margin: 0 auto; 
+                        }
+                        h2 { 
+                            color: #333; 
+                            margin-bottom: 10px;
+                        }
+                        .instructions {
+                            font-size: 14px;
+                            color: #666;
+                            margin: 15px 0;
+                        }
+                        img { 
+                            max-width: 100%; 
+                            height: auto;
+                        }
+                        .footer {
+                            margin-top: 20px;
+                            font-size: 12px;
+                            color: #999;
+                        }
+                        @media print {
+                            body { padding: 0; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="print-container">
+                        <h2>${document.querySelector('h2').textContent.replace('Registered', '').trim()}</h2>
+                        <p>Church Check-In QR Code</p>
+                        <img src="${document.getElementById('qrImage').src}" alt="QR Code">
+                        <div class="instructions">
+                            Scan this QR code to check in at church services
+                        </div>
+                        <div class="footer">
+                            Generated on ${new Date().toLocaleDateString()}
+                        </div>
+                    </div>
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            setTimeout(function() { window.close(); }, 500);
+                        }
+                    <\/script>
+                </body>
+                </html>
+            `;
+            
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+        }
+        
+        // Start session timer on page load
+        startSessionTimer();
+    </script>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🔐 Admin Login</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .login-container {
+            background: #fff;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            animation: fadeIn 0.5s ease-out;
+            position: relative;
+            z-index: 10;
+        }
+        h2 {
+            margin-bottom: 1.8rem;
+            font-size: 28px;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .input-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+            position: relative;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #333;
+        }
+        input[type="password"] {
+            padding: 14px;
+            font-size: 16px;
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+        button {
+            background: #2ecc71;
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            font-size: 17px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        button:hover {
+            background: #27ae60;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button.loading {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+        button.loading::after {
+            content: "";
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            top: 50%;
+            left: 50%;
+            margin: -10px 0 0 -10px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+        .error-message {
+            color: #e74c3c;
+            background-color: #ffebee;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            text-align: left;
+        }
+        .footer {
+            margin-top: 20px;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        .session-expired {
+            color: #f39c12;
+            background-color: #fef5e7;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .background-bubbles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            overflow: hidden;
+        }
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            animation: float 15s infinite ease-in-out;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); }
+            25% { transform: translateY(-20px) translateX(10px); }
+            50% { transform: translateY(-40px) translateX(-10px); }
+            75% { transform: translateY(-20px) translateX(-15px); }
+        }
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 1.8rem;
+            }
+            h2 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="background-bubbles">
+        <!-- Background bubbles for visual effect -->
+        <div class="bubble" style="width: 80px; height: 80px; top: 10%; left: 20%; animation-duration: 18s;"></div>
+        <div class="bubble" style="width: 120px; height: 120px; top: 40%; left: 70%; animation-duration: 22s;"></div>
+        <div class="bubble" style="width: 60px; height: 60px; top: 70%; left: 40%; animation-duration: 16s;"></div>
+    </div>
+    
+    <div class="login-container">
+        <h2>
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+            </svg>
+            Admin Login
+        </h2>
+        
+        <div id="sessionExpired" class="session-expired">
+            ⚠️ Your session has expired. Please log in again.
+        </div>
+        
+        <div id="errorMessage" class="error-message" role="alert">
+            ❌ Incorrect PIN. Please try again.
+        </div>
+        
+        <form id="loginForm">
+            <div class="input-group">
+                <label for="pin">Enter Admin PIN:</label>
+                <input type="password" name="pin" id="pin" placeholder="Enter 4-digit PIN" required
+                       aria-label="Enter Admin PIN" aria-required="true">
+            </div>
+            
+            <input type="hidden" id="csrf_token" name="csrf_token" value="simulated_csrf_token">
+            
+            <button type="submit" id="loginButton" aria-live="polite">Login</button>
+        </form>
+        
+        <div class="footer">
+            Church Check-In System v1.0
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById("loginForm");
+            const errorMessage = document.getElementById("errorMessage");
+            const sessionExpired = document.getElementById("sessionExpired");
+            const pinInput = document.getElementById("pin");
+            const loginButton = document.getElementById("loginButton");
+            
+            // Check if session expired
+            const urlParams = new URLSearchParams(window.location.search);
+            if(urlParams.has('expired')) {
+                sessionExpired.style.display = 'block';
+                pinInput.focus();
+            }
+            
+            // Check if there was an error
+            if(urlParams.has('error')) {
+                errorMessage.style.display = 'block';
+                pinInput.focus();
+            }
+            
+            // Form submission handling
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                // Show loading state
+                loginButton.classList.add('loading');
+                loginButton.disabled = true;
+                
+                // Simple client-side validation
+                if(pinInput.value.length !== 4 || !/^\d+$/.test(pinInput.value)) {
+                    errorMessage.textContent = '❌ PIN must be 4 digits';
+                    errorMessage.style.display = 'block';
+                    loginButton.classList.remove('loading');
+                    loginButton.disabled = false;
+                    pinInput.focus();
+                    return;
+                }
+                
+                // Submit the form
+                const formData = new FormData(form);
+                
+                try {
+                    const response = await fetch('/admin-login', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.redirected) {
+                        // Successful login
+                        window.location.href = response.url;
+                    } else {
+                        // Handle error response
+                        const result = await response.text();
+                        errorMessage.textContent = result || '❌ Login failed. Please try again.';
+                        errorMessage.style.display = 'block';
+                        loginButton.classList.remove('loading');
+                        loginButton.disabled = false;
+                        pinInput.focus();
+                    }
+                } catch (error) {
+                    // Network error
+                    errorMessage.textContent = '❌ Network error. Please try again.';
+                    errorMessage.style.display = 'block';
+                    loginButton.classList.remove('loading');
+                    loginButton.disabled = false;
+                    pinInput.focus();
+                }
+            });
+            
+            // Real-time PIN validation
+            pinInput.addEventListener('input', function() {
+                if(this.value.length > 4) {
+                    this.value = this.value.slice(0, 4);
+                }
+                
+                if(/^\d{4}$/.test(this.value)) {
+                    errorMessage.style.display = 'none';
+                }
+            });
+            
+            // Focus PIN field on load
+            pinInput.focus();
+        });
+    </script>
+</body>
+</html>

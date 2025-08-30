@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check-Out Successful</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f0fff0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .box {
+            background: white;
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        h1 {
+            color: #2ecc71;
+            margin-bottom: 15px;
+        }
+
+        p {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        a {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            background-color: #2ecc71;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
+
+        a:hover {
+            background-color: #27ae60;
+        }
+    </style>
+    <script>
+  window.onload = function () {
+    setTimeout(function () {
+      // back to the scanner hub
+      window.location.replace('/scan');
+    }, 1500);
+  };
+</script>
+
+
+
+</head>
+<body>
+    <div class="box">
+        <h1>✅ Checked Out</h1>
+        <p>{{ name }} has successfully checked out.</p>
+        {% if children %}
+        <p>Also checked out:</p>
+        <ul style="list-style: none; padding: 0;">
+            {% for child in children %}
+            <li>👶 {{ child }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        <a href="/">Return to Home</a>
+    </div>
+</body>
+</html>

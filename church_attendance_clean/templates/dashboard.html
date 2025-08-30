@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>📋 Dashboard</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --secondary: #2ecc71;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: #f8f9fa;
+            padding: 20px;
+            color: #333;
+            position: relative;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+            position: relative;
+        }
+        
+        .header h1 {
+            color: var(--dark);
+            margin-bottom: 10px;
+        }
+        
+        .quick-checkin {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+        }
+        
+        .quick-checkin h3 {
+            margin-top: 0;
+            color: var(--dark);
+            text-align: center;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        
+        .search-box input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        .search-box button {
+            padding: 12px 20px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 100px;
+        }
+        
+        .search-box button.loading {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .search-box button.loading::after {
+            content: "";
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+        
+        .search-results {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+            position: relative;
+        }
+        
+        .result-item {
+            padding: 12px;
+            border-bottom: 1px solid #f5f5f5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+        
+        .result-item:hover {
+            background-color: #f9f9f9;
+        }
+        
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .result-info {
+            flex: 1;
+        }
+        
+        .result-name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .result-details {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .no-results {
+            padding: 15px;
+            text-align: center;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 25px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 15px;
+        }
+        
+        .tab-btn {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 0 5px;
+            border-radius: 4px 4px 0 0;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .tab-btn:focus {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+        
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 10px 15px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+        }
+        
+        .btn-success {
+            background-color: var(--secondary);
+        }
+        
+        .btn-danger {
+            background-color: var(--danger);
+        }
+        
+        .btn-warning {
+            background-color: var(--warning);
+        }
+        
+        .btn i {
+            margin-right: 5px;
+        }
+        
+        #searchInput {
+            width: 50%;
+            max-width: 400px;
+            padding: 10px;
+            margin: 0 auto 20px auto;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            display: block;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+        
+        th {
+            background-color: var(--dark);
+            color: white;
+            font-weight: 600;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .delete-btn {
+            background-color: var(--danger);
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .delete-btn:hover {
+            background-color: #c0392b;
+        }
+        
+        .action-cell {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+        
+        .checkin-btn {
+            background-color: var(--secondary);
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .checkin-btn:hover {
+            background-color: #25a25a;
+        }
+        
+        .family-info {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .role-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        
+        .badge-parent {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .badge-child {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge-adult {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+        
+        .logout-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: var(--danger);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+        }
+        
+        .logout-btn:hover {
+            background-color: #c0392b;
+        }
+        
+        .session-timeout {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            #searchInput {
+                width: 90%;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+            }
+            
+            table, th, td {
+                font-size: 14px;
+                padding: 8px;
+            }
+            
+            .search-box {
+                flex-direction: column;
+            }
+            
+            .search-box input {
+                width: 100%;
+            }
+            
+            .family-info {
+                font-size: 0.8em;
+            }
+            
+            .logout-btn {
+                position: static;
+                margin-top: 10px;
+                width: 100%;
+                margin-bottom: 15px;
+            }
+            
+            .result-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .checkin-btn {
+                width: 100%;
+            }
+
+
+            .checkout-btn {
+            background-color: #e74c3c;
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+            .checkout-btn:hover {
+          background-color: #c0392b;
+        } 
+        
+        .action-cell {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+
+
+
+        }
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+</head>
+<body>
+    <button class="logout-btn" onclick="logout()">
+        <i class="bi bi-box-arrow-right"></i> Logout
+    </button>
+    
+    <div class="header">
+        <h1>📋 Church Admin Dashboard</h1>
+        <p>Manage check-ins and registrations</p>
+    </div>
+
+    {% if all_checked_out %}
+<div class="alert alert-success" style="margin: 15px 0; padding: 10px; border-radius: 6px; background-color: #d4edda; color: #155724; text-align: center;">
+    ✅ All attendees have checked out for today!
+    <div style="margin-top: 10px;">
+        <a href="/download-logs" class="btn btn-info">
+            <i class="bi bi-download"></i> Download Logs
+        </a>
+        <form method="POST" action="/clear-logs" style="display:inline;" onsubmit="return confirm('Are you sure you want to clear logs for a fresh start?');">
+            <button type="submit" class="btn btn-danger">
+                <i class="bi bi-trash"></i> Clear Logs
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% if logs_cleared %}
+<div class="alert alert-info" style="margin: 15px 0; padding: 10px; border-radius: 6px; background-color: #d1ecf1; color: #0c5460; text-align: center;">
+    🗑️ Logs have been cleared successfully. Ready for a fresh day!
+</div>
+{% endif %}
+
+
+    <!-- Session timeout indicator -->
+    <div class="session-timeout" id="sessionTimeout">
+        Session expiring in <span id="timeoutCounter">2:00</span> minutes
+    </div>
+    
+    <!-- Toast notifications -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Quick Check-in Section -->
+    <div class="quick-checkin">
+        <h3>Quick Manual Check-In</h3>
+        <div class="search-box">
+            <input type="text" id="quickCheckinSearch" placeholder="Search by name, email, or phone..." 
+                   aria-label="Search registrations">
+            <button id="searchButton" onclick="searchRegistrations()">
+                <i class="bi bi-search"></i> Search
+            </button>
+        </div>
+        <div id="searchResults" class="search-results" aria-live="polite">
+            <div class="no-results">Search for members to check them in</div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="checkins">Check-In Logs</button>
+        <button class="tab-btn" data-tab="registrations">Registrations</button>
+    </div>
+
+    <!-- ✅ Check-In Logs Tab -->
+    <div class="tab-content active" id="checkins-tab">
+        <div class="controls">
+    <button onclick="window.print()" class="btn" aria-label="Print logs">
+        <i class="bi bi-printer"></i> Print
+    </button>
+    <a href="/download-logs" class="btn btn-info">
+        <i class="bi bi-download"></i> Download Logs
+    </a>
+    <a href="/register" class="btn btn-success">
+        <i class="bi bi-person-plus"></i> Add New Registration
+    </a>
+    <form method="POST" action="/clear-logs" style="display:inline;" 
+          onsubmit="return confirm('Are you sure you want to clear all logs for a fresh start?');">
+        <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash"></i> Clear Logs
+        </button>
+    </form>
+</div>
+
+
+        <input type="text" id="searchInput" placeholder="Search by name or date (YYYY-MM-DD)..." 
+               aria-label="Search check-in logs">
+
+        <table id="logTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Date</th>
+                    <th>Check-In Time</th>
+                    <th>Check-Out Time</th>
+                    <th>Method</th>
+                    <th>Actions</th>
+                    <!-- (Address removed here because logs.csv doesn’t have it) -->
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in logs %}
+                <tr>
+                    <td>{{ row[0] }}</td>
+                    <td>
+                        <span class="role-badge 
+                            {% if row[1] == 'Parent' %}badge-parent
+                            {% elif row[1] == 'Child' %}badge-child
+                            {% else %}badge-adult{% endif %}">
+                            {{ row[1] }}
+                        </span>
+                    </td>
+                    <td>{{ row[2] }}</td>
+                    <td>{{ row[3] }}</td>
+                    <td>{{ row[4] if row[4] else 'Not checked out' }}</td>
+                    <td>{{ row[5] }}</td>
+                    <td class="action-cell">
+                        <form method="POST" action="/delete-log/{{ loop.index0 }}">
+                            <button class="delete-btn" 
+                                    onclick="return confirm('Are you sure you want to delete this log?');"
+                                    aria-label="Delete log">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </form>
+                        <button class="checkin-btn" 
+                                onclick="manualCheckIn('{{ row[0] }}')"
+                                aria-label="Check in {{ row[0] }}">
+                            <i class="bi bi-check-circle"></i> Check In
+                        </button>
+                        {% if not row[4] %}
+                        <button class="checkout-btn" 
+                                onclick="manualCheckOut('{{ row[0] }}')"
+                                aria-label="Check out {{ row[0] }}">
+                            <i class="bi bi-box-arrow-right"></i> Check Out
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% if logs|length == 0 %}
+        <div class="no-results">No check-in records found</div>
+        {% endif %}
+    </div>
+
+    <!-- ✅ Registrations Tab -->
+    <div class="tab-content" id="registrations-tab">
+        <div class="controls">
+            <a href="/admin-registrations" class="btn">
+                <i class="bi bi-people"></i> Manage All Registrations
+            </a>
+            <a href="/register" class="btn btn-success">
+                <i class="bi bi-person-plus"></i> Add New Registration
+            </a>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Contact</th>
+                    <th>Role</th>
+                    <th>Family Info</th>
+                    <!-- 🔹 Added Address column here -->
+                    <th>Address</th>
+                    <th>Date of Birth</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reg in registrations %}
+                <tr>
+                    <td>
+                        <div>{{ reg.name }}</div>
+                    </td>
+                    <td>
+                        <div>{{ reg.email }}</div>
+                        <div>{{ reg.phone }}</div>
+                    </td>
+                    <td>
+                        <span class="role-badge 
+                            {% if reg.role == 'Parent' %}badge-parent
+                            {% elif reg.role == 'Child' %}badge-child
+                            {% else %}badge-adult{% endif %}">
+                            {{ reg.role }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if reg.role == 'Parent' and reg.children %}
+                            <div>Children: {{ reg.children }}</div>
+                        {% elif reg.role == 'Child' and reg.parents %}
+                            <div>Parents: {{ reg.parents }}</div>
+                        {% else %}
+                            <div>-</div>
+                        {% endif %}
+                    </td>
+                    <!-- 🔹 Address cell: supports object OR raw CSV row -->
+                    <td>
+                        {% if reg.address is defined and reg.address %}
+                            {{ reg.address }}
+                        {% elif reg|length > 10 and reg[10] %}
+                            {{ reg[10] }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ reg.date_of_birth or '-' }}</td>
+
+                    <td class="action-cell">
+                        <form action="/delete-registration/{{ loop.index0 }}" method="post">
+                            <button class="delete-btn" 
+                                    onclick="return confirm('Are you sure you want to delete this registration?');"
+                                    aria-label="Delete registration">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </form>
+                        <button class="checkin-btn" 
+                                onclick="manualCheckIn('{{ reg.name }}')"
+                                aria-label="Check in {{ reg.name }}">
+                            <i class="bi bi-check-circle"></i> Check In
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% if registrations|length == 0 %}
+        <div class="no-results">No registrations found</div>
+        {% endif %}
+    </div>
+
+
+    <script>
+        // Session timeout settings
+        const SESSION_TIMEOUT_MINUTES = 30;
+        let sessionTimeout = SESSION_TIMEOUT_MINUTES * 60; // in seconds
+        let sessionTimer;
+        const sessionTimeoutElement = document.getElementById('sessionTimeout');
+        const timeoutCounter = document.getElementById('timeoutCounter');
+        
+        // Start session timer
+        function startSessionTimer() {
+           clearInterval(sessionTimer);
+           sessionTimeout = SESSION_TIMEOUT_MINUTES * 60;
+           updateSessionTimerDisplay();
+    
+           sessionTimer = setInterval(() => {
+           sessionTimeout--;
+           updateSessionTimerDisplay();
+        
+         if (sessionTimeout <= 0) {
+            clearInterval(sessionTimer);
+            alert('Your session has expired. Please log in again.');
+            window.location.href = '/admin-login?expired=1';
+        } else if (sessionTimeout <= 120) {
+            sessionTimeoutElement.style.display = 'block';
+        }
+    }, 1000);
+}
+        
+        function updateSessionTimerDisplay() {
+            const minutes = Math.floor(sessionTimeout / 60);
+            const seconds = sessionTimeout % 60;
+            timeoutCounter.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        // Reset session timer on user activity
+        document.addEventListener('click', startSessionTimer);
+        document.addEventListener('keypress', startSessionTimer);
+        
+        // Tab switching functionality
+        document.querySelectorAll('.tab-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                // Remove active class from all buttons
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                button.classList.add('active');
+                
+                // Hide all tab content
+                document.querySelectorAll('.tab-content').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                
+                // Show corresponding tab content
+                const tabName = button.getAttribute('data-tab');
+                document.getElementById(`${tabName}-tab`).classList.add('active');
+            });
+        });
+        
+        // Search functionality for logs table
+        const searchInput = document.getElementById("searchInput");
+        if (searchInput) {
+            searchInput.addEventListener("keyup", function() {
+                const query = this.value.toLowerCase();
+                const rows = document.querySelectorAll("#logTable tbody tr");
+                
+                rows.forEach(row => {
+                    const rowText = row.textContent.toLowerCase();
+                    row.style.display = rowText.includes(query) ? "" : "none";
+                });
+            });
+        }
+        
+        // Manual check-in function
+        function manualCheckIn(name) {
+            // Sanitize name
+         const cleanName = name.replace(/[^\w\s]/gi, '');
+            
+            if (confirm(`Check in ${name} manually?`)) {
+                showToast(`Checking in ${name}...`, 'info');
+                
+                fetch(`/manual-checkin?name=${encodeURIComponent(name)}`, {
+                    method: 'POST'
+                })
+                .then(response => {
+                    if (response.redirected) {
+                        window.location.href = '/admin-login?expired=1';
+                    } else {
+                        return response.text();
+                    }
+                })
+                .then(result => {
+                    if (result) {
+                        showToast(result, result.includes('✅') ? 'success' : 'error');
+                        if (result.includes('✅')) {
+                            setTimeout(() => location.reload(), 1500);
+                        }
+                    }
+                })
+                .catch(error => {
+                    showToast('Error: ' + error, 'error');
+                });
+            }
+        }
+        // Add this new function for manual checkout
+        function manualCheckOut(name) {
+    if (confirm(`Check out ${name}?`)) {
+        showToast(`Checking out ${name}...`, 'info');
+        
+        fetch(`/manual-checkout?name=${encodeURIComponent(name)}`, {
+            method: 'POST'
+        })
+        .then(response => {
+            if (response.redirected) {
+                window.location.href = '/admin-login?expired=1';
+            } else {
+                return response.text();
+            }
+        })
+        .then(result => {
+            if (result) {
+                showToast(result, result.includes('✅') ? 'success' : 'error');
+                if (result.includes('✅')) {
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    // Show detailed error
+                    console.error("Checkout failed:", result);
+                }
+            }
+        })
+        .catch(error => {
+            showToast('Error: ' + error, 'error');
+            console.error("Checkout error:", error);
+        });
+    }
+}
+        // Search registrations for quick check-in
+        function searchRegistrations() {
+            const query = document.getElementById('quickCheckinSearch').value.trim();
+            const searchButton = document.getElementById('searchButton');
+            const resultsContainer = document.getElementById('searchResults');
+            
+            if (!query) {
+                resultsContainer.innerHTML = '<div class="no-results">Please enter a search term</div>';
+                return;
+            }
+            
+            // Sanitize query
+            const sanitizedQuery = query.replace(/[^\w\s@.-]/gi, '');
+            
+            // Show loading state
+            searchButton.innerHTML = '<i class="bi bi-search"></i> Searching';
+            searchButton.classList.add('loading');
+            resultsContainer.innerHTML = '<div class="no-results">Searching...</div>';
+            
+            fetch(`/search-registrations?query=${encodeURIComponent(sanitizedQuery)}`)
+                .then(response => {
+                    if (response.redirected) {
+                        window.location.href = '/admin-login?expired=1';
+                    } else {
+                        return response.json();
+                    }
+                })
+                .then(results => {
+                    // Reset button
+                    searchButton.innerHTML = '<i class="bi bi-search"></i> Search';
+                    searchButton.classList.remove('loading');
+                    
+                    if (!results) return;
+                    
+                    if (results.length === 0) {
+                        resultsContainer.innerHTML = '<div class="no-results">No matching registrations found</div>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    results.forEach(person => {
+                        // Escape HTML in names to prevent XSS
+                        const safeName = escapeHtml(person.name);
+                        const safeEmail = escapeHtml(person.email || '');
+                        const safePhone = escapeHtml(person.phone || '');
+                        
+                        html += `
+                            <div class="result-item">
+                                <div class="result-info">
+                                    <div class="result-name">${safeName}</div>
+                                    <div class="result-details">
+                                        ${safeEmail ? safeEmail + ' | ' : ''} 
+                                        ${safePhone ? safePhone : ''}
+                                    </div>
+                                </div>
+                                <button class="checkin-btn" 
+                                        onclick="manualCheckIn('${safeName.replace(/'/g, "\\'")}')"
+                                        aria-label="Check in ${safeName}">
+                                    <i class="bi bi-check-circle"></i> Check In
+                                </button>
+                            </div>
+                        `;
+                    });
+                    resultsContainer.innerHTML = html;
+                })
+                .catch(error => {
+                    searchButton.innerHTML = '<i class="bi bi-search"></i> Search';
+                    searchButton.classList.remove('loading');
+                    resultsContainer.innerHTML = `<div class="no-results">Error: ${error.message || 'Search failed'}</div>`;
+                });
+        }
+        
+        // Make the search trigger on Enter key
+        document.getElementById('quickCheckinSearch').addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                searchRegistrations();
+            }
+        });
+        
+        // Logout function
+        function logout() {
+            fetch('/logout', { method: 'POST' })
+                .then(response => {
+                    window.location.href = '/';
+                });
+        }
+        
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.display = 'block';
+            
+            // Set background color based on type
+            if (type === 'success') toast.style.backgroundColor = '#28a745';
+            else if (type === 'error') toast.style.backgroundColor = '#dc3545';
+            else if (type === 'info') toast.style.backgroundColor = '#17a2b8';
+            
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+        
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+        
+        // Start session timer on page load
+        startSessionTimer();
+    </script>
+</body>
+</html>

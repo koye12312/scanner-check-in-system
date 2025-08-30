@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Scan QR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0b1220; color: #fff; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 18px; margin: 12px 0; opacity: .9; }
+    #scanner { width: 100%; aspect-ratio: 3/4; background: #111; border-radius: 12px; overflow: hidden; }
+    .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    button, select { flex: 1; padding: 12px; border-radius: 10px; border: 0; font-weight: 600; }
+    button { background: #18a0fb; color: #fff; }
+    button.stop { background: #d9534f; }
+    .status { margin-top: 10px; min-height: 24px; font-size: 14px; opacity: .9; }
+    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; background: rgba(0,0,0,.7); padding: 10px 14px; border-radius: 10px; font-size: 14px; }
+    /* Mirror the preview for front-facing cameras only */
+    #scanner.mirrored video { transform: scaleX(-1); }
+  </style>
+
+  <!-- QR library -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Ready to scan</h1>
+
+    <div id="scanner"></div>
+
+    <div class="row">
+      <button id="frontBtn" type="button">Front camera</button>
+      <button id="backBtn"  type="button">Back camera</button>
+    </div>
+    <div class="row">
+      <select id="cameraSelect" title="Camera (advanced)"></select>
+      <button id="startBtn">Start</button>
+      <button id="stopBtn" class="stop" disabled>Stop</button>
+    </div>
+
+    <div class="status" id="status">Grant camera permission and tap Start.</div>
+    <div id="toast" class="toast" style="display:none;"></div>
+    <audio id="beep" preload="auto">
+      <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAAACAAACAgAA" type="audio/wav">
+    </audio>
+  </div>
+
+  <script>
+  const scannerEl = document.getElementById('scanner');
+  const startBtn  = document.getElementById('startBtn');
+  const stopBtn   = document.getElementById('stopBtn');
+  const camSel    = document.getElementById('cameraSelect');
+  const statusEl  = document.getElementById('status');
+  const toastEl   = document.getElementById('toast');
+  const beepEl    = document.getElementById('beep');
+  const frontBtn  = document.getElementById('frontBtn');
+  const backBtn   = document.getElementById('backBtn');
+
+  let html5Qrcode;
+  let running = false;
+  let lastCode = null;
+  let lastScanAt = 0;
+
+  const COOLDOWN_MS = 2500;
+
+  function toast(msg){ toastEl.textContent = msg; toastEl.style.display='block'; setTimeout(()=>toastEl.style.display='none',1400); }
+  function setStatus(msg){ statusEl.textContent = msg; }
+  function isFrontLabel(label){ return /front|selfie|user|inner|face/i.test(label || ""); }
+
+  async function listCameras() {
+    try {
+      const cams = await Html5Qrcode.getCameras();
+      camSel.innerHTML = '';
+      cams.forEach((c,i)=>{
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.label || `Camera ${i+1}`;
+        camSel.appendChild(opt);
+      });
+
+      // Prefer FRONT camera by default for your use case
+      const front = [...camSel.options].find(o => isFrontLabel(o.textContent));
+      if (front) {
+        camSel.value = front.value;
+        localStorage.setItem('lastDeviceId', front.value);
+        localStorage.setItem('lastFacing', 'user');
+      } else if (camSel.options.length) {
+        camSel.selectedIndex = 0;
+      }
+
+      if (!cams.length) setStatus('No cameras found.');
+      return cams;
+    } catch {
+      setStatus('Unable to list cameras. Check permissions / HTTPS.');
+      return [];
+    }
+  }
+
+  async function stop() {
+    if (!running) return;
+    try { await html5Qrcode.stop(); } catch {}
+    running = false;
+    startBtn.disabled = false;
+    stopBtn.disabled  = true;
+    setStatus('Paused. Tap Start to resume.');
+    scannerEl.classList.remove('mirrored');
+  }
+
+  async function startWithDeviceId(deviceId, mirror=false) {
+    if (!html5Qrcode) html5Qrcode = new Html5Qrcode(scannerEl.id, { verbose:false });
+
+    // Stop any existing stream before switching
+    await stop();
+
+    const config = {
+      fps: 10,
+      qrbox: { width: 320, height: 320 },
+      aspectRatio: 1.333,
+      rememberLastUsedCamera: true
+    };
+
+    try {
+      await html5Qrcode.start({ deviceId: { exact: deviceId } }, config, onScanSuccess, onScanFailure);
+      running = true;
+      startBtn.disabled = true;
+      stopBtn.disabled  = false;
+      setStatus('Scanning…');
+      scannerEl.classList.toggle('mirrored', mirror);
+    } catch (e) {
+      setStatus('Camera start failed. Tap Start or check permissions.');
+      console.error(e);
+    }
+  }
+
+  async function startFront() {
+    const cams = await listCameras();
+    let devOpt = [...camSel.options].find(o => isFrontLabel(o.textContent));
+    if (!devOpt && camSel.options.length) devOpt = camSel.options[camSel.options.length - 1]; // heuristic
+    if (!devOpt) return setStatus('No front camera found.');
+    camSel.value = devOpt.value;
+    localStorage.setItem('lastDeviceId', devOpt.value);
+    localStorage.setItem('lastFacing', 'user');
+    await startWithDeviceId(devOpt.value, true);
+  }
+
+  async function startBack() {
+    const cams = await listCameras();
+    let devOpt = [...camSel.options].find(o => /back|rear|environment|world|outward/i.test(o.textContent));
+    if (!devOpt && camSel.options.length) devOpt = camSel.options[0];
+    if (!devOpt) return setStatus('No back camera found.');
+    camSel.value = devOpt.value;
+    localStorage.setItem('lastDeviceId', devOpt.value);
+    localStorage.setItem('lastFacing', 'environment');
+    await startWithDeviceId(devOpt.value, false);
+  }
+
+  async function start(auto=false) {
+    // If user has selected a device manually, use that
+    const selectedId = camSel.value || localStorage.getItem('lastDeviceId');
+    if (selectedId) {
+      const mirror = isFrontLabel(camSel.selectedOptions[0]?.textContent || "");
+      await startWithDeviceId(selectedId, mirror);
+      setStatus(auto ? 'Scanning… (auto-start)' : 'Scanning…');
+      return;
+    }
+    // Otherwise prefer front
+    await startFront();
+    setStatus(auto ? 'Scanning… (auto-start)' : 'Scanning…');
+  }
+
+  function onScanFailure(_) { /* ignore */ }
+
+  function onScanSuccess(decodedText) {
+    const now = Date.now();
+    if (decodedText === lastCode && (now - lastScanAt) < COOLDOWN_MS) return;
+
+    lastCode = decodedText;
+    lastScanAt = now;
+    try { navigator.vibrate && navigator.vibrate(60); } catch {}
+    try { beepEl.play().catch(()=>{}); } catch {}
+
+    setStatus('Processing…');
+    stop(); // prevent double-read
+    const url = '/check-in?data=' + encodeURIComponent(decodedText);
+    sessionStorage.setItem('autoStartScan', '1');
+    window.location.replace(url);
+  }
+
+  // Auto-pause when hidden
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop();
+  });
+
+  // Controls
+  startBtn.addEventListener('click', () => {
+    sessionStorage.setItem('autoStartScan', '1');
+    start(false);
+  });
+  stopBtn.addEventListener('click', () => {
+    sessionStorage.removeItem('autoStartScan');
+    stop();
+  });
+
+  // Manual camera selection (advanced)
+  camSel.addEventListener('change', async () => {
+    const id = camSel.value;
+    const mirror = isFrontLabel(camSel.selectedOptions[0]?.textContent || "");
+    localStorage.setItem('lastDeviceId', id);
+    localStorage.setItem('lastFacing', mirror ? 'user' : 'environment');
+    await startWithDeviceId(id, mirror);
+  });
+
+  frontBtn.addEventListener('click', startFront);
+  backBtn.addEventListener('click', startBack);
+
+  // Boot
+  (async () => {
+    // Get permission once so labels appear on Android
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    } catch(e) {
+      console.warn('Permission preflight failed:', e);
+    }
+    await listCameras();
+
+    const shouldAuto = sessionStorage.getItem('autoStartScan') === '1';
+    window.addEventListener('pageshow', () => { if (shouldAuto) start(true); });
+    if (shouldAuto) start(true);
+  })();
+  </script>
+</body>
+</html>
