@@ -1,53 +1,48 @@
-# Scanner-Check in Attendance System (Flask + QR Codes)
+# Scanner+Check-In System (Flask + QR Codes)
 
-A lightweight check‑in/out system built with Flask. It supports QR-based registration, duplicate‑check prevention, parent/child logic, and an admin dashboard for logs and exports.
+A complete check-in/out system for churches, schools, or small events.  
+Built with **Flask** and **QR code scanning**, it allows fast registration, secure attendance tracking, parent–child check-ins, and real-time logging with admin control.
 
-## Features
-- Register members (adult/parent/child) and auto‑generate QR codes
-- Fast check‑in/check‑out (prevents duplicates)
-- Parent‑child linking (only unscanned children appear for a second parent)
-- Admin dashboard: view, search, and export logs
-- CSV storage (no external DB), simple deployment
-- PyInstaller packaging (optional)
+---
 
-## Security & Privacy
-- **No personal data in this repo.** `data/` contains empty sample CSVs.
-- `static/qrcodes/` is empty (placeholder only).
+## ✨ Features
 
-## Getting Started (Local)
+- **QR-based registration**
+  - Adults/parents/children register once, auto-generating a QR code
+  - Prevents duplicate registrations (case-insensitive name matching)
+- **Check-In / Check-Out**
+  - Fast QR scanning for arrivals & departures
+  - Duplicate prevention (same person/child cannot be checked in twice)
+  - Parent–child linking: only unscanned children appear for a second parent
+- **Admin Dashboard**
+  - PIN-protected `/dashboard` route
+  - View live attendance logs
+  - Edit or delete log entries directly
+  - Export logs to CSV
+- **Data Handling**
+  - CSV storage (`data/registrations.csv`, `data/logs.csv`)
+  - No external database required
+- **Push Notifications (Optional)**
+  - Web-push support using VAPID keys (`generate_vapid_keys.py`)
+  - Instant real-time updates when new logs are added
+- **Deployment**
+  - Works locally or on a server
+  - PyInstaller packaging included → portable `.exe` for Windows
+
+---
+
+## 🛠️ Installation (Local)
 
 ```bash
-# 1) Create & activate a virtual env (recommended)
+# 1. Create and activate a virtual environment
 python -m venv .venv
-# Windows:
+# Windows
 .venv\Scripts\activate
-# macOS/Linux:
+# macOS/Linux
 source .venv/bin/activate
 
-# 2) Install dependencies
+# 2. Install dependencies
 pip install -r requirements.txt
 
-
-# 4) Run the app
+# 3. Run the app
 python app.py
-```
-
-The app serves templates from `/templates` and static assets from `/static`. QR codes will be generated to `static/qrcodes/` at registration time.
-
-## Project Structure
-```
-app.py
-templates/
-static/
-  qrcodes/        # empty; generated at runtime
-data/
-  registrations.csv  # sample headers only
-  logs.csv           # sample headers only
-requirements.txt
-.gitignore
-```
-
-## Production Notes
-- Use a proper SMTP account for email (the code uses standard `smtplib`).
-- Protect admin views (PIN or auth) if you deploy publicly.
-- If packaging with PyInstaller, keep build artifacts out of the repo.
