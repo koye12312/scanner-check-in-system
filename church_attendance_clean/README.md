@@ -45,7 +45,6 @@ data/
   logs.csv           # sample headers only
 requirements.txt
 .gitignore
-vapid_keys_example.py
 ```
 
 ## Production Notes
