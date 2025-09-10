@@ -22,9 +22,6 @@ Built with **Flask** and **QR code scanning**, it allows fast registration, secu
 - **Data Handling**
   - CSV storage (`data/registrations.csv`, `data/logs.csv`)
   - No external database required
-- **Push Notifications (Optional)**
-  - Web-push support using VAPID keys (`generate_vapid_keys.py`)
-  - Instant real-time updates when new logs are added
 - **Deployment**
   - Works locally or on a server
   - PyInstaller packaging included → portable `.exe` for Windows
