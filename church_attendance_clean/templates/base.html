@@ -1,0 +1,82 @@
+{% from "_icons.html" import icon %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#172036">
+  <title>{% block title %}{{ org_name }}{% endblock %} – {{ org_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="appbar">
+    <div class="appbar__inner">
+      <a class="brand" href="/scan">
+        {#- The logo is a tiny name tag: red band, white label -#}
+        <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="1" y="5" width="30" height="22" rx="5" fill="#c62f3a"/>
+          <rect x="4" y="13" width="24" height="11" rx="2.5" fill="#fff"/>
+          <rect x="8" y="17.5" width="11" height="2.5" rx="1.25" fill="#172036"/>
+        </svg>
+        <span>{{ org_name }}</span>
+      </a>
+      <nav class="nav" aria-label="Main">
+        <a href="/scan" {% if section == "scan" %}aria-current="page"{% endif %}>{{ icon("scan") }}<span class="nav__label">Scan</span></a>
+        <a href="/register" {% if section == "register" %}aria-current="page"{% endif %}>{{ icon("user-plus") }}<span class="nav__label">Register</span></a>
+        <a href="/dashboard" {% if section == "admin" %}aria-current="page"{% endif %}>{{ icon("grid") }}<span class="nav__label">Dashboard</span></a>
+        {% if is_admin %}
+        <form method="POST" action="/logout" style="display:contents">
+          <button type="submit">{{ icon("logout") }}<span class="nav__label">Log out</span></button>
+        </form>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  {% block main %}
+  <main class="page {% block page_class %}{% endblock %}" id="main">
+    {% block content %}{% endblock %}
+  </main>
+  {% endblock %}
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  {% if is_admin and session_timer %}
+  <div class="session-timeout" id="sessionTimeout" role="status">
+    {{ icon("clock") }} You'll be logged out in <span id="timeoutCounter">2:00</span>
+  </div>
+  <script>
+    // Admin sessions expire after 30 minutes of inactivity (matches the server).
+    (function () {
+      const LIMIT = 30 * 60;
+      let left = LIMIT, timer;
+      const box = document.getElementById("sessionTimeout");
+      const out = document.getElementById("timeoutCounter");
+      function tick() {
+        left--;
+        out.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+        if (left <= 0) { clearInterval(timer); window.location.href = "/admin-login?expired=1"; }
+        else if (left <= 120) { box.style.display = "flex"; }
+      }
+      function reset() { left = LIMIT; box.style.display = "none"; clearInterval(timer); timer = setInterval(tick, 1000); }
+      ["click", "keydown"].forEach(e => document.addEventListener(e, reset));
+      reset();
+    })();
+  </script>
+  {% endif %}
+
+  <script>
+    function showToast(message, kind) {
+      const t = document.getElementById("toast");
+      t.textContent = message;
+      t.className = "toast is-visible" + (kind ? " toast--" + kind : "");
+      clearTimeout(t._hide);
+      t._hide = setTimeout(() => { t.className = "toast"; }, 3200);
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
+{#- Child templates set `section` ("scan" | "register" | "admin") to highlight the
+    nav, and `session_timer = true` on admin pages to show the logout warning. -#}

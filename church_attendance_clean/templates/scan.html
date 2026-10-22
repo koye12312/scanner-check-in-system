@@ -1,243 +1,185 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Scan QR</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <style>
-    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,sans-serif; margin:0; background:#0b1220; color:#fff; }
-    .wrap { max-width:720px; margin:0 auto; padding:16px; }
-    h1 { font-size:18px; margin:12px 0; opacity:.9; }
-    #scanner { width:100%; aspect-ratio:3/4; background:#111; border-radius:12px; overflow:hidden; }
+{% extends "base.html" %}
+{% set section = "scan" %}
+{% block title %}Scan to check in{% endblock %}
+{% block body_class %}scan-page{% endblock %}
+{% block content %}
+<div class="scanner">
+  <div>
+    <h1 class="scanner__title">Hold your QR code up to the camera</h1>
+    <p class="scanner__lead">Keep it inside the corners. You'll be checked in, or out if you're already here.</p>
 
-    /* Default: apply an extra horizontal flip so mirrored front feeds look normal */
-    #scanner video, #scanner canvas {
-      transform: scaleX(-1) !important;
-      -webkit-transform: scaleX(-1) !important;
-      transform-origin: center center !important;
-      -webkit-transform-origin: center center !important;
-    }
-
-    /* When we toggle “no-flip”, show raw feed */
-    #scanner.no-flip video, #scanner.no-flip canvas {
-      transform: none !important;
-      -webkit-transform: none !important;
-    }
-
-    .row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
-    button, select { flex:1; padding:12px; border-radius:10px; border:0; font-weight:600; }
-    button { background:#18a0fb; color:#fff; }
-    button.stop { background:#d9534f; }
-    .status { margin-top:10px; min-height:24px; font-size:14px; opacity:.9; }
-    .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:16px; background:rgba(0,0,0,.7); padding:10px 14px; border-radius:10px; font-size:14px; display:none; }
-  </style>
-
-  <script src="https://unpkg.com/html5-qrcode"></script>
-</head>
-<body>
-  <div class="wrap">
-    <h1>Ready to scan</h1>
-
-    <div id="scanner"></div>
-
-    <div class="row">
-      <button id="frontBtn" type="button">Front camera</button>
-      <button id="backBtn"  type="button">Back camera</button>
-      <button id="flipBtn"  type="button" title="If preview looks mirrored, tap to toggle">Fix preview</button>
-    </div>
-    <div class="row">
-      <select id="cameraSelect" title="Camera (advanced)"></select>
-      <button id="startBtn">Start</button>
-      <button id="stopBtn" class="stop" disabled>Stop</button>
+    <div class="viewfinder" id="viewfinder" style="margin-top: var(--s5)">
+      <div id="scanner"></div>
+      <div class="viewfinder__frame" aria-hidden="true"></div>
+      <div class="viewfinder__idle" id="idle">
+        {{ icon('camera') }}
+        <p id="idleText">Starting the camera…</p>
+      </div>
     </div>
 
-    <div class="status" id="status">Opening camera…</div>
-    <div id="toast" class="toast"></div>
-    <audio id="beep" preload="auto">
-      <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAAACAAACAgAA" type="audio/wav">
-    </audio>
+    <div class="scan-status" id="statusWrap" role="status" aria-live="polite">
+      <span class="scan-status__dot" aria-hidden="true"></span>
+      <span id="status">Opening camera…</span>
+    </div>
   </div>
 
-  <script>
-  const scannerEl = document.getElementById('scanner');
-  const startBtn  = document.getElementById('startBtn');
-  const stopBtn   = document.getElementById('stopBtn');
-  const camSel    = document.getElementById('cameraSelect');
-  const statusEl  = document.getElementById('status');
-  const beepEl    = document.getElementById('beep');
-  const frontBtn  = document.getElementById('frontBtn');
-  const backBtn   = document.getElementById('backBtn');
-  const flipBtn   = document.getElementById('flipBtn');
-  const toastEl   = document.getElementById('toast');
+  <aside class="scan-side">
+    <section>
+      <h2>Camera</h2>
+      <div class="btn-stack">
+        <div class="btn-row" style="display: grid; grid-template-columns: 1fr 1fr">
+          <button class="btn btn--secondary" id="frontBtn" type="button">Front</button>
+          <button class="btn btn--secondary" id="backBtn" type="button">Back</button>
+        </div>
+        <label class="visually-hidden" for="cameraSelect">Choose a camera</label>
+        <select class="input" id="cameraSelect"></select>
+        <div class="btn-row" style="display: grid; grid-template-columns: 1fr 1fr">
+          <button class="btn btn--primary" id="startBtn" type="button">{{ icon('play') }} Start</button>
+          <button class="btn btn--secondary" id="stopBtn" type="button" disabled>{{ icon('stop') }} Stop</button>
+        </div>
+        <button class="btn btn--secondary" id="flipBtn" type="button">{{ icon('flip') }} Flip view</button>
+        <p class="hint">If the picture looks back to front, use Flip view. It doesn't affect scanning.</p>
+      </div>
+    </section>
+    <section class="scan-side__links">
+      <p>No QR code yet? <a href="/register">Register here</a>.</p>
+    </section>
+  </aside>
+</div>
 
-  let html5Qrcode;
-  let running = false;
-  let lastCode = null;
-  let lastScanAt = 0;
+<audio id="beep" preload="auto">
+  <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAAACAAACAgAA" type="audio/wav">
+</audio>
+{% endblock %}
 
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/html5-qrcode.min.js') }}"></script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const finder = $("viewfinder"), startBtn = $("startBtn"), stopBtn = $("stopBtn");
+  const camSel = $("cameraSelect"), statusWrap = $("statusWrap");
+
+  let reader, running = false, lastCode = null, lastAt = 0;
   const COOLDOWN_MS = 2500;
-  const setStatus = (m) => statusEl.textContent = m;
-  const toast = (m) => { toastEl.textContent = m; toastEl.style.display='block'; setTimeout(()=>toastEl.style.display='none',1400); };
-  const isFrontLabel = s => /front|selfie|user|inner|face/i.test(s || "");
-  const isBackLabel  = s => /back|rear|environment|world|outward/i.test(s || "");
 
-  async function ensureInstance() {
-    if (!html5Qrcode) html5Qrcode = new Html5Qrcode('scanner', { verbose:false });
+  function setStatus(msg, live) {
+    $("status").textContent = msg;
+    statusWrap.classList.toggle("is-live", !!live);
+  }
+  const isFront = s => /front|selfie|user|inner|face/i.test(s || "");
+  const isBack  = s => /back|rear|environment|world|outward/i.test(s || "");
+
+  function ensureReader() {
+    if (!reader) reader = new Html5Qrcode("scanner", { verbose: false });
   }
 
   async function listCameras() {
     try {
       const cams = await Html5Qrcode.getCameras();
-      camSel.innerHTML = '';
-      cams.forEach((c,i)=>{
-        const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = c.label || `Camera ${i+1}`;
-        camSel.appendChild(opt);
+      camSel.innerHTML = "";
+      cams.forEach((c, i) => {
+        const o = document.createElement("option");
+        o.value = c.id; o.textContent = c.label || `Camera ${i + 1}`;
+        camSel.appendChild(o);
       });
       return cams;
     } catch (e) {
-      console.warn(e);
-      setStatus('Unable to list cameras. Check permissions.');
+      setStatus("Camera access is blocked. Allow camera access in the browser and reload.");
+      $("idleText").textContent = "Camera access is blocked";
       return [];
     }
   }
 
   async function stop() {
     if (!running) return;
-    try { await html5Qrcode.stop(); } catch {}
+    try { await reader.stop(); } catch (_) {}
     running = false;
-    startBtn.disabled = false;
-    stopBtn.disabled  = true;
+    finder.classList.remove("is-running");
+    startBtn.disabled = false; stopBtn.disabled = true;
+    setStatus("Scanner paused. Press Start to scan again.");
+    $("idleText").textContent = "Scanner paused";
   }
 
   async function startWith(constraint) {
-    await ensureInstance();
+    ensureReader();
     await stop();
-
-    const config = {
-      fps: 10,
-      qrbox: { width: 320, height: 320 },
-      aspectRatio: 1.333,
-      disableFlip: true,              // keep library from flipping
-      rememberLastUsedCamera: true
-    };
-
     try {
-      await html5Qrcode.start(constraint, config, onScanSuccess, onScanFailure);
+      await reader.start(constraint, {
+        fps: 10,
+        qrbox: (w, h) => { const s = Math.floor(Math.min(w, h) * 0.6); return { width: s, height: s }; },
+        disableFlip: true
+      }, onScan, () => {});
       running = true;
-      startBtn.disabled = true;
-      stopBtn.disabled  = false;
-      setStatus('Scanning…');
+      finder.classList.add("is-running");
+      startBtn.disabled = true; stopBtn.disabled = false;
+      setStatus("Ready. Show a QR code.", true);
       return true;
     } catch (e) {
-      console.warn('start failed', constraint, e);
-      setStatus('Camera start failed. Try another device / button.');
+      setStatus("That camera didn't start. Try Front, Back or another camera from the list.");
       return false;
     }
   }
 
-  async function startFront() {
-    // Prefer constraint approach
-    if (await startWith({ facingMode: "user" })) {
-      localStorage.setItem('lastFacing', 'user');
-      return;
-    }
-    // Fallback by label
+  async function startFacing(mode, matchLabel, fallbackIndex) {
+    if (await startWith({ facingMode: mode })) { localStorage.setItem("lastFacing", mode); return; }
     await listCameras();
-    let opt = [...camSel.options].find(o => isFrontLabel(o.textContent));
-    if (!opt && camSel.options.length) opt = camSel.options[camSel.options.length-1];
+    const opts = [...camSel.options];
+    let opt = opts.find(o => matchLabel(o.textContent)) || opts.at(fallbackIndex);
     if (opt) {
       camSel.value = opt.value;
-      await startWith({ deviceId: { exact: opt.value } });
-      localStorage.setItem('lastFacing', 'user');
+      if (await startWith({ deviceId: { exact: opt.value } })) localStorage.setItem("lastFacing", mode);
     } else {
-      setStatus('No front camera found.');
+      setStatus("No camera found on this device.");
+      $("idleText").textContent = "No camera found";
     }
   }
+  const startFront = () => startFacing("user", isFront, -1);
+  const startBack  = () => startFacing("environment", isBack, 0);
 
-  async function startBack() {
-    if (await startWith({ facingMode: "environment" })) {
-      localStorage.setItem('lastFacing', 'environment');
-      return;
-    }
-    await listCameras();
-    let opt = [...camSel.options].find(o => isBackLabel(o.textContent));
-    if (!opt && camSel.options.length) opt = camSel.options[0];
-    if (opt) {
-      camSel.value = opt.value;
-      await startWith({ deviceId: { exact: opt.value } });
-      localStorage.setItem('lastFacing', 'environment');
-    } else {
-      setStatus('No back camera found.');
-    }
-  }
-
-  async function start(auto=false) {
-    // If a manual device is chosen, honor it
-    const selected = camSel.selectedOptions[0];
-    if (selected) {
-      await startWith({ deviceId: { exact: selected.value } });
-      setStatus(auto ? 'Scanning… (auto-start)' : 'Scanning…');
-      return;
-    }
-    // Default to FRONT
-    await startFront();
-    setStatus(auto ? 'Scanning… (auto-start)' : 'Scanning…');
-  }
-
-  function onScanFailure(_) { /* ignore decode failures */ }
-
-  function onScanSuccess(decodedText) {
+  function onScan(text) {
     const now = Date.now();
-    if (decodedText === lastCode && (now - lastScanAt) < COOLDOWN_MS) return;
-    lastCode = decodedText;
-    lastScanAt = now;
-
-    try { navigator.vibrate && navigator.vibrate(60); } catch {}
-    try { beepEl.play().catch(()=>{}); } catch {}
-
-    setStatus('Processing…');
-    stop(); // prevent double-read
-    sessionStorage.setItem('autoStartScan', '1');   // auto-resume on return
-    window.location.replace('/check-in?data=' + encodeURIComponent(decodedText));
+    if (text === lastCode && now - lastAt < COOLDOWN_MS) return;
+    lastCode = text; lastAt = now;
+    finder.classList.add("is-hit");
+    try { navigator.vibrate && navigator.vibrate(60); } catch (_) {}
+    try { $("beep").play().catch(() => {}); } catch (_) {}
+    setStatus("Got it. Checking you in…", true);
+    stop();
+    sessionStorage.setItem("autoStartScan", "1");   // resume when we come back here
+    window.location.replace("/check-in?data=" + encodeURIComponent(text));
   }
 
-  // Pause when tab hidden
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
-
-  // Controls
-  startBtn.addEventListener('click', () => { sessionStorage.setItem('autoStartScan','1'); start(false); });
-  stopBtn .addEventListener('click', () => { sessionStorage.removeItem('autoStartScan'); stop(); });
-  frontBtn.addEventListener('click', startFront);
-  backBtn .addEventListener('click', startBack);
-  camSel  .addEventListener('change', async () => {
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); });
+  startBtn.addEventListener("click", () => {
+    sessionStorage.setItem("autoStartScan", "1");
     const opt = camSel.selectedOptions[0];
-    if (opt) await startWith({ deviceId: { exact: opt.value } });
+    opt ? startWith({ deviceId: { exact: opt.value } }) : startFront();
+  });
+  stopBtn.addEventListener("click", () => { sessionStorage.removeItem("autoStartScan"); stop(); });
+  $("frontBtn").addEventListener("click", startFront);
+  $("backBtn").addEventListener("click", startBack);
+  camSel.addEventListener("change", () => { const o = camSel.selectedOptions[0]; if (o) startWith({ deviceId: { exact: o.value } }); });
+  $("flipBtn").addEventListener("click", () => {
+    finder.classList.toggle("no-flip");
+    showToast(finder.classList.contains("no-flip") ? "Showing the camera as it sees you" : "Showing a mirror image");
   });
 
-  // Preview flip toggle: if it still looks wrong, tap “Fix preview”
-  flipBtn.addEventListener('click', () => {
-    scannerEl.classList.toggle('no-flip');
-    toast(scannerEl.classList.contains('no-flip') ? 'Preview: raw (no flip)' : 'Preview: corrected (double flip)');
-  });
-
-  // Boot
   (async () => {
-    // Preflight permission once (then release) so labels populate on iOS
+    if (typeof Html5Qrcode === "undefined") {
+      setStatus("The scanner couldn't load. Reload the page.");
+      return;
+    }
+    // Ask for permission once so camera names appear (needed on iOS)
     try {
       const pre = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       pre.getTracks().forEach(t => t.stop());
     } catch (_) {}
-
     await listCameras();
-
-    const shouldAuto = sessionStorage.getItem('autoStartScan') === '1';
-    if (shouldAuto) start(true); else startFront();
-
-    // If you navigate back here, auto-start again
-    window.addEventListener('pageshow', () => { if (sessionStorage.getItem('autoStartScan') === '1') start(true); });
+    // Reuse the camera that worked last time (front by default for a kiosk)
+    localStorage.getItem("lastFacing") === "environment" ? startBack() : startFront();
+    window.addEventListener("pageshow", e => { if (e.persisted && sessionStorage.getItem("autoStartScan") === "1") startFront(); });
   })();
-  </script>
-</body>
-</html>
+})();
+</script>
+{% endblock %}

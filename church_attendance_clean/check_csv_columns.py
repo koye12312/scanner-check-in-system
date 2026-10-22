@@ -5,7 +5,7 @@ from pathlib import Path
 # ✅ Import REG_CSV from app.py so we use the same file path
 from app import REG_CSV  
 
-EXPECTED_COLUMNS = 11  # Adjust if you add more later
+EXPECTED_COLUMNS = 12  # First Name … Date of Birth
 
 if not os.path.exists(REG_CSV):
     print(f"❌ File {REG_CSV} not found.")

@@ -1,18 +1,21 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Confirm Clear Logs</title>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; margin-top: 80px; }
-        .btn { padding: 12px 20px; text-decoration: none; border-radius: 6px; color: white; }
-        .btn-danger { background: #e74c3c; }
-        .btn-secondary { background: #7f8c8d; }
-    </style>
-</head>
-<body>
-    <h2>⚠ Confirm Clearing Logs</h2>
-    <p>Are you sure you want to clear all logs after download? This action cannot be undone.</p>
-    <a href="/download-logs" class="btn btn-danger">Yes, Download & Clear Logs</a>
-    <a href="/dashboard" class="btn btn-secondary">Cancel</a>
-</body>
-</html>
+{% extends "base.html" %}
+{% set section = "admin" %}
+{% set session_timer = true %}
+{% block title %}Download and clear logs{% endblock %}
+{% block page_class %}page--centered{% endblock %}
+{% block content %}
+<div class="panel" style="width: 100%">
+  <div class="alert alert--warn">
+    {{ icon('alert') }}
+    <div>
+      <h1 style="font-size: var(--step-2)">Download and clear today's log?</h1>
+      <p style="margin-top: var(--s2)">The log downloads as a CSV file, then every check-in record is deleted so you can start fresh. Registrations are kept. This can't be undone.</p>
+    </div>
+  </div>
+  <div class="btn-stack" style="margin-top: var(--s5)">
+    <a href="/download-logs?clear=1" class="btn btn--primary btn--big">{{ icon('download') }} Download and clear</a>
+    <a href="/download-logs" class="btn btn--secondary">Just download, keep the log</a>
+    <a href="/dashboard" class="btn btn--quiet">Cancel</a>
+  </div>
+</div>
+{% endblock %}
