@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% set section = "scan" %}
+{% block title %}{{ title }}{% endblock %}
+{% block page_class %}page--centered{% endblock %}
+{% block content %}
+  <div class="panel" style="width:100%">
+    <div class="alert alert--{{ 'ok' if kind == 'success' else kind }}" role="{{ 'alert' if kind == 'error' else 'status' }}">
+      {{ icon('check-circle' if kind == 'success' else ('alert' if kind == 'error' else 'info')) }}
+      <div>
+        <h1 style="font-size: var(--step-2)">{{ title }}</h1>
+        <p style="margin-top: var(--s2)">{{ message }}</p>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top: var(--s5)">
+      <a class="btn btn--primary btn--big btn--block" href="{{ action_href }}">{{ icon('arrow-left') }} {{ action_label }}</a>
+    </div>
+  </div>
+{% endblock %}

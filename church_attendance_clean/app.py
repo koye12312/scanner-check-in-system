@@ -14,13 +14,19 @@ from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from collections import defaultdict
 import time
+import secrets
+from functools import wraps
+from html import escape
 RECENT_CHECKINS = defaultdict(float)
 RESCAN_COOLDOWN_SECONDS = 8
 
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'your_secure_secret_key')
+# A fixed SECRET_KEY keeps admins logged in across restarts; without one we
+# generate a random key so the app never runs with a guessable default.
+app.secret_key = os.getenv('SECRET_KEY') or secrets.token_hex(32)
 ADMIN_PIN = os.getenv('ADMIN_PIN', '4321')
+ORG_NAME = os.getenv('ORG_NAME', 'Church Check-In')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 
@@ -28,30 +34,68 @@ if getattr(sys, 'frozen', False):
     app.template_folder = os.path.join(sys._MEIPASS, 'templates')
     app.static_folder = os.path.join(sys._MEIPASS, 'static')
 
-# Email configuration
-EMAIL_HOST = ""
-EMAIL_PORT = 587
-EMAIL_USER = ""
-EMAIL_PASS = ""
+
+@app.context_processor
+def inject_globals():
+    """Values every template can use."""
+    return {
+        "org_name": ORG_NAME,
+        "is_admin": bool(session.get("authenticated")),
+    }
+
+
+def login_required(view):
+    """Redirect to the admin login unless the session is authenticated."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("authenticated"):
+            if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
+                return jsonify({"error": "Unauthorized"}), 401
+            return redirect("/admin-login")
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def notice(title, message, kind="error", status=400, action_href="/scan", action_label="Back to scanner"):
+    """Render a friendly full-page message instead of a bare text response."""
+    return render_template(
+        "message.html",
+        title=title,
+        message=message,
+        kind=kind,
+        action_href=action_href,
+        action_label=action_label,
+    ), status
+
+
+# Email configuration — set these as environment variables to enable emails.
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USER = os.getenv("EMAIL_USER", "")
+EMAIL_PASS = os.getenv("EMAIL_PASS", "")
 
 def send_qr_email(recipient_email, name, qr_path):
-    """Send a beautiful HTML email with QR code attachment"""
+    """Email the QR code. Returns True if the email was sent."""
+    if not (EMAIL_HOST and EMAIL_USER and EMAIL_PASS):
+        print("ℹ️  Email not configured (EMAIL_HOST/EMAIL_USER/EMAIL_PASS); skipping QR email.")
+        return False
     try:
         msg = MIMEMultipart("alternative")
         msg["From"] = EMAIL_USER
         msg["To"] = recipient_email
-        msg["Subject"] = "Welcome to Watford Church – Your QR Code"
+        msg["Subject"] = f"Welcome to {ORG_NAME} – your check-in QR code"
 
         # HTML email content
+        safe_name = escape(name)
+        safe_org = escape(ORG_NAME)
         html_body = f"""
         <html>
-        <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
-            <h2 style="color:#2E86C1;">Hi {name},</h2>
-            <p>Welcome to <strong>ENTER BUSINESS HERE</strong>! 🎉</p>
-            <p>We’re so excited to have you join our community.</p>
-            <p>Your QR code for check-in is attached to this email.</p>
-            <p>Please bring this QR code with you upon entrance for fast and easy check-in.</p>
-            <p style="margin-top: 20px;">THANK YOU,<br><strong>BUSINESS NAME</strong></p>
+        <body style="font-family: Arial, sans-serif; color: #18213A; line-height: 1.6;">
+            <h2 style="color:#18213A;">Hi {safe_name},</h2>
+            <p>Welcome to <strong>{safe_org}</strong>.</p>
+            <p>Your check-in QR code is attached to this email.</p>
+            <p>Show it at the welcome desk when you arrive and it will check you in straight away.</p>
+            <p style="margin-top: 20px;">See you soon,<br><strong>{safe_org}</strong></p>
         </body>
         </html>
         """
@@ -71,10 +115,12 @@ def send_qr_email(recipient_email, name, qr_path):
             server.login(EMAIL_USER, EMAIL_PASS)
             server.sendmail(EMAIL_USER, recipient_email, msg.as_string())
 
-        print(f"✅ Beautiful HTML email sent to {recipient_email}")
+        print(f"✅ QR email sent to {recipient_email}")
+        return True
 
     except Exception as e:
         print(f"❌ Error sending email to {recipient_email}: {e}")
+        return False
 
 
 # Path configuration
@@ -108,7 +154,9 @@ def get_registered_parents():
     return sorted(list(parents))
 
 def normalize_name(name):
-    return " ".join(part.capitalize() for part in name.strip().split())
+    """Capitalise the first letter of each word but keep the rest as typed,
+    so "mary-jane o'neill" -> "Mary-jane O'neill" and "McDonald" stays "McDonald"."""
+    return " ".join(part[:1].upper() + part[1:] for part in name.strip().split())
 
 def name_has_number(name):
     return any(char.isdigit() for char in name)
@@ -170,7 +218,15 @@ def get_minor_children(parent_name):
 
                 # CASE 1: If parent row contains children in the children column
                 if role == "parent" and full_name == parent_name and row[6].strip():
-                    children = [c.strip() for c in row[6].split(",") if c.strip()]
+                    # The form asks for first names only, so add the parent's
+                    # surname to single names ("Ada" -> "Ada Adeyemi") to match
+                    # the child's own registration and QR code.
+                    parent_last = row[1].strip()
+                    for c in row[6].split(","):
+                        c = c.strip()
+                        if not c:
+                            continue
+                        children.append(c if " " in c else normalize_name(f"{c} {parent_last}"))
                     return children  # Return immediately if found
 
     return children
@@ -223,6 +279,15 @@ def index():
 def register():
     registered_parents = get_registered_parents()
 
+    def reg_error(message):
+        """Show the form again with the person's answers kept and the problem explained."""
+        return render_template(
+            "register.html",
+            registered_parents=registered_parents,
+            errors=[message],
+            form=request.form,
+        ), 400
+
     if request.method == "POST":
         first = normalize_name(request.form["first_name"])
         last = normalize_name(request.form["last_name"])
@@ -242,28 +307,28 @@ def register():
 
         # Validate names
         if name_has_number(first) or name_has_number(last):
-            return "❌ Names cannot contain numbers."
+            return reg_error("Names cannot contain numbers.")
         if '|' in first or '|' in last:
-            return "❌ Names cannot contain the '|' character."
+            return reg_error("Names cannot contain the '|' character.")
         if already_registered(full_name):
-            return "❌ This person is already registered."
+            return reg_error("This person is already registered.")
 
         # Role-specific validation
         parent_name = ""  # default
         if role == "Child":
             if children_raw:
-                return "❌ Children cannot register children under their name."
+                return reg_error("Children cannot register children under their name.")
 
             parent_names = request.form.getlist("parent")  # up to 2 parents
             if not parent_names:
-                return "❌ Parent/Guardian is required for children."
+                return reg_error("Parent/Guardian is required for children.")
             if len(parent_names) > 2:
-                return "❌ You can only select up to 2 parents."
+                return reg_error("You can only select up to 2 parents.")
 
             # Validate each selected parent exists
             for pname in parent_names:
                 if not any(pname.lower() == p.lower() for p in registered_parents):
-                    return f"❌ Parent '{pname}' is not registered."
+                    return reg_error(f"Parent '{pname}' is not registered.")
 
             parent_name = ", ".join(parent_names)  # store both parents as CSV
 
@@ -272,20 +337,21 @@ def register():
 
         # Validate email and phone
         if email_exists(email):
-            return "❌ This email is already registered."
+            return reg_error("This email is already registered.")
         if phone_exists(phone):
-            return "❌ This phone number is already registered."
+            return reg_error("This phone number is already registered.")
 
         # Process children list (for Parent role)
         child_list = []
         if children_raw and role == "Parent":
-            raw_names = [normalize_name(c) for c in children_raw.split(",")]
+            raw_names = [normalize_name(c) for c in children_raw.split(",") if c.strip()]
             for c in raw_names:
                 if name_has_number(c):
-                    return f"❌ Child name '{c}' contains a number."
+                    return reg_error(f"Child name '{c}' contains a number.")
                 if '|' in c:
-                    return f"❌ Child name '{c}' contains invalid character '|'"
-                child_list.append(c)
+                    return reg_error(f"Child name '{c}' contains invalid character '|'")
+                # "Last name will be added automatically" — the form promised it, now it does
+                child_list.append(c if " " in c else f"{c} {last}")
 
         # Generate QR code
         qr_data = f"{first}|{last}|{role}"
@@ -373,19 +439,19 @@ def check_in():
     qr_data = urllib.parse.unquote(qr_data)
 
     if not qr_data:
-        return "❌ Invalid QR scan."
+        return notice("That code didn't scan", "No check-in details were found in the QR code. Try scanning it again, holding it steady inside the frame.")
 
     # Parse parts
     try:
         parts = qr_data.split("|")
         if len(parts) < 3:
-            return "❌ Malformed QR code. Expected first|last|role format."
+            return notice("This isn't a check-in code", "The QR code doesn't contain a name and role. Ask the welcome desk to register you and print a new code.")
         first = parts[0].strip()
         last  = parts[1].strip()
         role  = parts[2].split(",")[0].strip()
         name  = normalize_name(f"{first} {last}")
-    except Exception as e:
-        return f"❌ Error parsing QR code: {str(e)}"
+    except Exception:
+        return notice("That code couldn't be read", "Something in the QR code is damaged. Ask the welcome desk to regenerate it.")
 
     # If already checked in, bounce to checkout using the CLEANED qr_data
     if is_checked_in(name):
@@ -474,19 +540,19 @@ def check_out():
     qr_data = urllib.parse.unquote(qr_data)
 
     if not qr_data:
-        return "❌ Invalid QR scan."
+        return notice("That code didn't scan", "No check-in details were found in the QR code. Try scanning it again.")
 
     # Parse parts
     try:
         parts = qr_data.split("|")
         if len(parts) < 3:
-            return "❌ Malformed QR code."
+            return notice("This isn't a check-in code", "The QR code doesn't contain a name and role.")
         first = parts[0].strip()
         last  = parts[1].strip()
         role  = parts[2].split(",")[0].strip()
         name  = normalize_name(f"{first} {last}")
-    except Exception as e:
-        return f"❌ Error parsing QR code: {str(e)}"
+    except Exception:
+        return notice("That code couldn't be read", "Something in the QR code is damaged. Ask the welcome desk to regenerate it.")
 
     # Build checkout list (only include members who are actually checked in)
     checkout_list = []
@@ -502,7 +568,7 @@ def check_out():
     # If nobody is actually checked in, tell user immediately
     if request.method == "GET":
         if not checkout_list:
-            return "❌ No active check-in found for this family today."
+            return notice("Nobody to check out", f"{name} and their family aren't checked in today.", kind="info", status=200)
         return render_template("check_out.html", name=name, checkout_list=checkout_list)
 
     # POST → process checkout
@@ -512,9 +578,8 @@ def check_out():
         selected_members = [name]
 
     if not os.path.exists(LOG_CSV):
-        return "❌ No active check-in found."
+        return notice("Nobody to check out", "There are no check-ins recorded today.", kind="info", status=200)
 
-    from datetime import datetime
     today = str(datetime.now().date())
     timestamp = datetime.now().strftime("%H:%M:%S")
 
@@ -540,7 +605,7 @@ def check_out():
             found_any = True
 
     if not found_any:
-        return "❌ No active check-in found."
+        return notice("Nobody to check out", "None of the selected people are checked in today.", kind="info", status=200)
 
     # Write back with header intact
     out = [header] + data if header else data
@@ -555,26 +620,29 @@ def check_out():
 
 
 @app.route("/dashboard", methods=["GET", "POST"])
+@login_required
 def dashboard():
-    if not session.get("authenticated"):
-        return redirect("/admin-login")
 
-    # Load logs
+    # Load logs, remembering each row's position in the file so the
+    # delete buttons remove the right entry (the header is row 0).
     logs = []
     if os.path.exists(LOG_CSV):
         with open(LOG_CSV, newline="") as f:
-            logs = list(csv.reader(f))
-        if logs and logs[0][0] == "Name":  # Skip header row
-            logs = logs[1:]
+            raw_logs = list(csv.reader(f))
+        for i, row in enumerate(raw_logs):
+            if not row or row[0] == "Name":
+                continue
+            row = row + [""] * (7 - len(row))
+            logs.append({"index": i, "row": row})
 
     # Load registrations and process family info (now includes DOB)
     registrations = []
     if os.path.exists(REG_CSV):
         with open(REG_CSV, newline="") as f:
             reader = csv.reader(f)
-            for row in reader:
+            for raw_index, row in enumerate(reader):
                 # Skip header if present
-                if row and row[0].strip() == "First Name":
+                if not row or row[0].strip() == "First Name":
                     continue
 
                 # Ensure we have up to DOB column (index 11)
@@ -594,6 +662,7 @@ def dashboard():
                 parents = ", ".join([p.strip() for p in parents_raw.split(",") if p.strip()])
 
                 registrations.append({
+                    "index": raw_index,
                     "name": f"{first} {last}",
                     "email": email,
                     "phone": phone,
@@ -608,10 +677,20 @@ def dashboard():
     all_checked_out = session.pop("all_checked_out", False)
     logs_cleared = session.pop("logs_cleared", False)
 
+    today = str(datetime.now().date())
+    todays_logs = [l["row"] for l in logs if l["row"][2] == today]
+    stats = {
+        "here_now": sum(1 for r in todays_logs if not r[4]),
+        "children_here": sum(1 for r in todays_logs if not r[4] and r[1] == "Child"),
+        "checked_in_today": len(todays_logs),
+        "registered": len(registrations),
+    }
+
     return render_template(
         "dashboard.html",
         logs=logs,
         registrations=registrations,
+        stats=stats,
         all_checked_out=all_checked_out,
         logs_cleared=logs_cleared
     )
@@ -624,6 +703,7 @@ def logout():
     return redirect("/")
 
 @app.route("/api/logs")
+@login_required
 def api_logs():
     if not os.path.exists(LOG_CSV): return jsonify([])
     with open(LOG_CSV, newline="") as f:
@@ -637,11 +717,11 @@ def manual_checkin():
     name = request.args.get("name")
     if not name: return "❌ No name provided."
     
-    # Sanitize name to prevent CSV injection
-    dangerous_chars = [',', ';', '=', '+', '-', '@', '\t', '\r', '\n']
-    for char in dangerous_chars:
+    # Prevent CSV/formula injection without mangling names like "Mary-Jane":
+    # drop control characters and commas, then any leading formula characters.
+    for char in [',', ';', '\t', '\r', '\n']:
         name = name.replace(char, '')
-    name = normalize_name(name)
+    name = normalize_name(name.lstrip("=+-@ "))
     
     if is_checked_in(name):
         return f"❌ {name} is already checked in."
@@ -656,12 +736,16 @@ def manual_checkin():
                     break
     
     timestamp = datetime.now()
+    new_file = not os.path.exists(LOG_CSV)
     with open(LOG_CSV, "a", newline="") as f:
-        # Add empty checkout column
-        csv.writer(f).writerow([name, role, str(timestamp.date()), 
-                               timestamp.strftime("%H:%M:%S"), "", "Admin"])
-    
-    return f"✅ {name} manually checked in."
+        writer = csv.writer(f)
+        if new_file:
+            writer.writerow(["Name", "Role", "Date", "CheckIn", "CheckOut", "Method", "Parent"])
+        # Empty checkout column; same 7 columns as QR check-ins
+        writer.writerow([name, role, str(timestamp.date()),
+                         timestamp.strftime("%H:%M:%S"), "", "Admin", ""])
+
+    return f"✅ {name} checked in."
 
 # Add this new route to app.py
 @app.route("/manual-checkout", methods=["POST"])
@@ -712,14 +796,13 @@ def manual_checkout():
             if header:
                 writer.writerow(header)
             writer.writerows(logs)
-        return f"✅ {name} checked out successfully."
+        return f"✅ {name} checked out."
     else:
-        # Diagnostic information
-        active_found = any(row[0].strip() == name.strip() and not row[4].strip() for row in logs)
-        return f"❌ No active check-in found for {name}. Active check-in exists: {active_found}"   
+        return f"❌ {name} isn't checked in, so there's nothing to check out."
 
 
 @app.route("/search-registrations")
+@login_required
 def search_registrations():
     query = request.args.get("query", "").lower().strip()
     results = []
@@ -744,8 +827,9 @@ def search_registrations():
 @app.route("/admin-login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
-        pin = request.form.get("pin")
-        if pin == ADMIN_PIN:
+        pin = request.form.get("pin") or ""
+        if secrets.compare_digest(pin, ADMIN_PIN):
+            session.permanent = True
             session["authenticated"] = True
             return redirect("/dashboard")
         else:
@@ -753,44 +837,51 @@ def admin_login():
     return render_template("admin_login.html")
 
 @app.route("/delete-log/<int:index>", methods=["POST"])
+@login_required
 def delete_log(index):
-    if not session.get("authenticated"): return redirect("/admin-login")
     if not os.path.exists(LOG_CSV): return redirect("/dashboard")
     
     with open(LOG_CSV, newline="") as f:
         logs = list(csv.reader(f))
-    if 0 <= index < len(logs):
+    # index is the row's position in the file; never delete the header row
+    is_header = 0 <= index < len(logs) and logs[index] and logs[index][0] == "Name"
+    if 0 <= index < len(logs) and not is_header:
         logs.pop(index)
         with open(LOG_CSV, "w", newline="") as f:
             csv.writer(f).writerows(logs)
     return redirect("/dashboard")
 
 @app.route("/admin-registrations")
+@login_required
 def admin_registrations():
-    if not session.get("authenticated"): return redirect("/admin-login")
     registrations = []
     if os.path.exists(REG_CSV):
         with open(REG_CSV, newline="") as f:
-            registrations = list(csv.reader(f))
+            for i, row in enumerate(csv.reader(f)):
+                if not row or row[0].strip() == "First Name":
+                    continue  # header row is not a person
+                row = row + [""] * (12 - len(row))
+                registrations.append({"index": i, "row": row})
     return render_template("admin_registrations.html", registrations=registrations)
 
 @app.route("/delete-registration/<int:index>", methods=["POST"])
+@login_required
 def delete_registration(index):
-    if not session.get("authenticated"): return redirect("/admin-login")
     if not os.path.exists(REG_CSV): return redirect("/admin-registrations")
     
     with open(REG_CSV, newline="") as f:
         registrations = list(csv.reader(f))
-    if 0 <= index < len(registrations):
+    is_header = (0 <= index < len(registrations) and registrations[index]
+                 and registrations[index][0].strip() == "First Name")
+    if 0 <= index < len(registrations) and not is_header:
         registrations.pop(index)
         with open(REG_CSV, "w", newline="") as f:
             csv.writer(f).writerows(registrations)
-    return redirect("/admin-registrations")
+    return redirect(request.referrer or "/admin-registrations")
 
 @app.route("/edit-registration/<int:index>", methods=["GET", "POST"])
+@login_required
 def edit_registration(index):
-    if not session.get("authenticated"):
-        return redirect("/admin-login")
     if not os.path.exists(REG_CSV):
         return "No registrations"
 
@@ -854,7 +945,8 @@ def edit_registration(index):
         if role == "Parent":
             parent_name = f"{first} {last}"
         elif role == "Child":
-            parent_name = request.form.get("parent_name", parent_name)
+            chosen = [p for p in request.form.getlist("parent") if p.strip()][:2]
+            parent_name = ", ".join(chosen) or request.form.get("parent_name") or parent_name
 
         # Keep existing QR unless regenerating
         qr_url = reg[7] if len(reg) > 7 else ""
@@ -910,31 +1002,34 @@ def edit_registration(index):
     )
 
 @app.route("/resend-qr/<int:index>")
+@login_required
 def resend_qr(index):
-    if not session.get("authenticated"): return redirect("/admin-login")
-    if not os.path.exists(REG_CSV): return "No registrations"
-    
+    back = dict(action_href="/admin-registrations", action_label="Back to registrations")
+    if not os.path.exists(REG_CSV):
+        return notice("No registrations yet", "Register someone first.", **back)
+
     with open(REG_CSV, newline="") as f:
         registrations = list(csv.reader(f))
-    if index < 0 or index >= len(registrations):
-        return "Invalid index"
-    
+    if index < 0 or index >= len(registrations) or registrations[index][0] == "First Name":
+        return notice("Registration not found", "It may have been deleted. Refresh the list and try again.", **back)
+
     reg = registrations[index]
-    if len(reg) < 8 or not reg[7]: return "No QR code"
-    
-    qr_filename = reg[7].split("/")[-1]
-    qr_path = QR_FOLDER / qr_filename
-    
-    if len(reg) > 2 and reg[2]:
-        name = f"{reg[0]} {reg[1]}"
-        if send_qr_email(reg[2], name, str(qr_path)):
-            return "QR code resent!"
-    return "No email found"
+    name = f"{reg[0]} {reg[1]}"
+    # QR images are saved as First_Last.png when someone registers
+    qr_path = QR_FOLDER / f"{reg[0]}_{reg[1]}.png"
+    if not qr_path.exists():
+        return notice("No QR image on file", f"Open {name}'s registration and choose Regenerate QR to make a new one.", **back)
+
+    if len(reg) < 3 or not reg[2]:
+        return notice("No email address", f"Add an email address to {name}'s registration, then resend.", **back)
+
+    if send_qr_email(reg[2], name, str(qr_path)):
+        return notice("QR code sent", f"{name}'s QR code was emailed to {reg[2]}.", kind="success", status=200, **back)
+    return notice("Email couldn't be sent", "Email isn't set up yet, or the mail server rejected it. Set EMAIL_HOST, EMAIL_USER and EMAIL_PASS, then try again.", **back)
 
 @app.route("/check-out/<int:index>", methods=["POST"])
+@login_required
 def admin_check_out(index):
-    if not session.get("authenticated"): 
-        return redirect("/admin-login")
     
     # Get the registration
     with open(REG_CSV, newline="") as f:
@@ -967,11 +1062,13 @@ def admin_check_out(index):
         with open(LOG_CSV, "w", newline="") as f:
             csv.writer(f).writerows(logs)
         return redirect(f"/edit-registration/{index}")
-    return "No active check-in found for this user"
+    return notice("Nobody to check out", f"{full_name} isn't checked in.", kind="info", status=200,
+                  action_href=f"/edit-registration/{index}", action_label="Back to registration")
 
 
 # Add this to app.py (run once to update existing registrations)
 @app.route("/update-qr-codes")
+@login_required
 def update_qr_codes():
     if not os.path.exists(REG_CSV): 
         return "No registrations"
@@ -984,13 +1081,12 @@ def update_qr_codes():
     base_url = request.host_url.rstrip('/')
     
     for i, reg in enumerate(registrations):
-        if len(reg) < 8 or not reg[7]:
-            continue
-        
-        # Extract first/last from name
-        name_parts = reg[0].split()
-        first = name_parts[0]
-        last = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+        if len(reg) < 8 or not reg[7] or reg[0] == "First Name":
+            continue  # skip the header row and rows without a QR
+
+        # First and last names live in their own columns
+        first = reg[0].strip()
+        last = reg[1].strip()
         role = reg[5]
         
         # FIX: Generate new QR format (first|last|role)
@@ -1014,12 +1110,16 @@ def update_qr_codes():
     return f"Updated {updated} QR codes"
 
 @app.route("/download-logs")
+@login_required
 def download_logs():
-    if not session.get("authenticated"):
-        return redirect("/admin-login")
 
     if not os.path.exists(LOG_CSV):
-        return "❌ No logs available to download."
+        return notice("No logs to download", "Nobody has checked in yet.", kind="info", status=200,
+                      action_href="/dashboard", action_label="Back to dashboard")
+
+    # Downloading only clears the log when it comes from the confirm page
+    # (/download-logs?clear=1). A plain download never deletes anything.
+    clear_after = request.args.get("clear") == "1"
 
     date_str = datetime.now().strftime("%d-%m-%Y")
     download_name = f"check-in-logs-{date_str}.csv"
@@ -1031,28 +1131,27 @@ def download_logs():
         download_name=download_name
     )
 
-    @response.call_on_close
-    def clear_logs():
-        # Reset the log file and keep only the header row
-        with open(LOG_CSV, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Name", "Role", "Date", "CheckIn", "CheckOut", "Method", "Parent"])
+    if clear_after:
+        @response.call_on_close
+        def clear_logs():
+            # Reset the log file and keep only the header row
+            with open(LOG_CSV, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["Name", "Role", "Date", "CheckIn", "CheckOut", "Method", "Parent"])
 
     return response
 
 
 
 @app.route("/confirm-clear-logs")
+@login_required
 def confirm_clear_logs():
-    if not session.get("authenticated"):
-        return redirect("/admin-login")
     return render_template("confirm_clear_logs.html")
 
 
 @app.route("/clear-logs", methods=["POST"])
+@login_required
 def clear_logs():
-    if not session.get("authenticated"):
-        return redirect("/admin-login")
 
     # Recreate the logs CSV with just the header
     with open(LOG_CSV, "w", newline="") as f:
@@ -1061,8 +1160,6 @@ def clear_logs():
         )
 
     session["logs_cleared"] = True
-    return redirect("/dashboard")
-
     return redirect("/dashboard")
 
 
@@ -1081,7 +1178,7 @@ if __name__ == "__main__":
             try:
                 ip = socket.gethostbyname(socket.gethostname())
             except Exception:
-                ip = "input your ip address"   // i used 127.0.0.1
+                ip = "127.0.0.1"  # fall back to this machine only
         finally:
             s.close()
         return ip
@@ -1092,7 +1189,13 @@ if __name__ == "__main__":
         time.sleep(1.0)
         webbrowser.open(f"http://{ip}:5000")
 
+    if ADMIN_PIN == "4321":
+        print("⚠️  Using the default admin PIN 4321. Set ADMIN_PIN to change it.")
+
     threading.Thread(target=open_browser, daemon=True).start()
-    # Serve on all interfaces so other devices on Wi-Fi can reach it
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # Serve on all interfaces so other devices on Wi-Fi can reach it.
+    # Debug mode exposes an interactive console to anyone on the network,
+    # so it is off unless FLASK_DEBUG=1 is set explicitly.
+    debug = os.getenv("FLASK_DEBUG") == "1"
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=debug)
 

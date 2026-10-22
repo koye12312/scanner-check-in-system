@@ -1,0 +1,12 @@
+# Attendance data contains people's personal details (including children).
+# Keep it on the check-in machine, never in the repository.
+church_attendance_clean/data/
+church_attendance_clean/static/qrcodes/
+
+__pycache__/
+*.pyc
+.venv/
+.env
+build/
+dist/
+*.spec
